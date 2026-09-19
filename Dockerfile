@@ -7,6 +7,9 @@ RUN corepack enable
 WORKDIR /app
 
 FROM base AS deps
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 make g++ pkg-config libsecret-1-dev \
+  && rm -rf /var/lib/apt/lists/*
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json tsconfig.base.json ./
 COPY apps/web/package.json apps/web/package.json
 COPY packages/core/package.json packages/core/package.json
