@@ -76,7 +76,7 @@ export function WikiSwitcher() {
         const j = (await res.json().catch(() => ({}))) as { error?: string };
         // Soft failure — leave the dropdown open so the user can react.
         // eslint-disable-next-line no-alert
-        alert(j.error ?? `Switch failed (HTTP ${res.status})`);
+        alert(j.error ?? `切换失败（HTTP ${res.status}）`);
         return;
       }
       setOpen(false);
@@ -114,7 +114,7 @@ export function WikiSwitcher() {
         )}
         aria-haspopup="menu"
         aria-expanded={open}
-        title={data?.active.path ?? "Active wiki"}
+        title={data?.active.path ?? "启用的知识库"}
       >
         <span aria-hidden className="text-muted-foreground">⌂</span>
         <span className="truncate">{chipLabel}</span>
@@ -125,10 +125,11 @@ export function WikiSwitcher() {
         <div
           role="menu"
           className="absolute left-0 top-full z-50 mt-1.5 w-[280px] overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-lg"
+          style={{ zIndex: 1000 }}
         >
           <div className="border-b border-border px-3 py-2">
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Active wiki
+              启用的知识库
             </p>
             <p className="mt-0.5 truncate text-sm font-medium">{chipLabel}</p>
             <p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">
@@ -139,7 +140,7 @@ export function WikiSwitcher() {
           {others.length > 0 ? (
             <div className="border-b border-border py-1">
               <p className="px-3 pb-1 pt-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-                Switch to
+                切换到
               </p>
               <ul>
                 {others.map((w) => {
@@ -157,7 +158,7 @@ export function WikiSwitcher() {
                         </span>
                         {isLoading ? (
                           <span className="shrink-0 text-[10px] text-muted-foreground">
-                            switching…
+                            切换中…
                           </span>
                         ) : null}
                       </button>
@@ -174,14 +175,14 @@ export function WikiSwitcher() {
               onClick={() => setOpen(false)}
               className="block px-3 py-1.5 text-sm hover:bg-accent/60"
             >
-              + Create new wiki
+              + 创建新知识库
             </Link>
             <Link
               href="/settings?tab=wikis"
               onClick={() => setOpen(false)}
               className="block px-3 py-1.5 text-sm hover:bg-accent/60"
             >
-              Manage wikis…
+              管理知识库…
             </Link>
           </div>
         </div>
@@ -191,7 +192,7 @@ export function WikiSwitcher() {
 }
 
 function friendlyFolderName(path?: string): string {
-  if (!path) return "Default wiki";
+  if (!path) return "默认知识库";
   const parts = path.split("/");
   const last = parts[parts.length - 1] || path;
   return last;

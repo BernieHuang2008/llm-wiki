@@ -19,6 +19,14 @@ type ChatRow = {
   message_count: number;
 };
 
+// Folder ids are stored data and stay English; only the rendered label is
+// Chinese, shown beside the id.
+const FOLDER_LABEL: Record<string, string> = {
+  inbox: "收件箱",
+  pinned: "置顶",
+  archive: "归档",
+};
+
 export function ChatsSidebar() {
   const [chats, setChats] = useState<ChatRow[] | null>(null);
   const [folders, setFolders] = useState<string[]>([]);
@@ -35,7 +43,7 @@ export function ChatsSidebar() {
         fetch("/api/chats", { cache: "no-store" }),
         fetch("/api/chats/folders", { cache: "no-store" }),
       ]);
-      if (!chatsRes.ok) throw new Error(`/api/chats returned ${chatsRes.status}`);
+      if (!chatsRes.ok) throw new Error(`/api/chats 返回 ${chatsRes.status}`);
       const chatsData = (await chatsRes.json()) as { chats: ChatRow[] };
       const foldersData = foldersRes.ok
         ? ((await foldersRes.json()) as { folders: string[] })
@@ -59,7 +67,7 @@ export function ChatsSidebar() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ folder: "inbox" }),
       });
-      if (!res.ok) throw new Error(`/api/chats POST returned ${res.status}`);
+      if (!res.ok) throw new Error(`/api/chats POST 返回 ${res.status}`);
       const data = (await res.json()) as { chat: ChatRow };
       await refresh();
       router.push(`/chats/${data.chat.id}`);
@@ -99,11 +107,11 @@ export function ChatsSidebar() {
     <aside className="flex w-[280px] shrink-0 flex-col self-stretch border-r border-border bg-secondary">
       <div className="space-y-2 px-4 pb-2 pt-4">
         <Button onClick={onNewChat} disabled={creating} className="h-8 w-full text-ui">
-          {creating ? "Creating…" : "+ New chat"}
+          {creating ? "创建中…" : "+ 新建对话"}
         </Button>
         <Input
           type="search"
-          placeholder="Filter chats…"
+          placeholder="筛选对话…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           className="h-8 border-border/70 bg-background/60 text-ui"
@@ -113,14 +121,13 @@ export function ChatsSidebar() {
       <nav className="flex-1 overflow-y-auto px-2 pb-4 text-ui">
         {error ? <p className="px-3 text-caption text-destructive">{error}</p> : null}
         {!chats && !error ? (
-          <p className="px-3 text-caption text-muted-foreground">Loading…</p>
+          <p className="px-3 text-caption text-muted-foreground">正在载入…</p>
         ) : null}
 
         {chats && totalChats === 0 ? (
           <div className="mx-2 mt-2 rounded-md border border-dashed border-border/70 bg-background/40 px-3 py-3 text-caption text-muted-foreground">
-            No chats yet. Click <span className="text-foreground">+ New chat</span> to start
-            one — each chat is saved as a real <code>.md</code> file you can edit in any
-            editor.
+            还没有对话。点击 <span className="text-foreground">+ 新建对话</span> 开始一段——
+            每段对话都会保存为真实的 <code>.md</code> 文件，可以用任意编辑器打开和编辑。
           </div>
         ) : null}
 
@@ -129,6 +136,11 @@ export function ChatsSidebar() {
               <section key={folder} className="mb-3">
                 <h3 className="mt-3 px-3 pb-1 text-caption font-semibold uppercase tracking-wider text-muted-foreground">
                   {folder}
+                  {FOLDER_LABEL[folder] ? (
+                    <span className="ml-1.5 font-normal normal-case text-muted-foreground/70">
+                      {FOLDER_LABEL[folder]}
+                    </span>
+                  ) : null}
                   {items.length > 0 ? (
                     <span className="ml-1.5 font-normal normal-case text-muted-foreground/70">
                       {items.length}
@@ -136,7 +148,7 @@ export function ChatsSidebar() {
                   ) : null}
                 </h3>
                 {items.length === 0 ? (
-                  <p className="px-3 text-caption text-muted-foreground/60">empty</p>
+                  <p className="px-3 text-caption text-muted-foreground/60">空</p>
                 ) : (
                   <ul>
                     {items.map((c) => (

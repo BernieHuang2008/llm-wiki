@@ -7,7 +7,7 @@ import { requireSetup } from "@/lib/server-wiki";
 export default async function ChatsLayout({ children }: { children: React.ReactNode }) {
   await requireSetup("chat");
   return (
-    <SidebarLayoutWrapper sidebar={<ChatsSidebar />} triggerLabel="Open chats list">
+    <SidebarLayoutWrapper sidebar={<ChatsSidebar />} triggerLabel="打开对话列表">
       {children}
     </SidebarLayoutWrapper>
   );

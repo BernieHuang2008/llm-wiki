@@ -138,19 +138,19 @@ export default async function DashboardPage() {
   return (
     <PageContainer width="xl">
       <PageHeader
-        eyebrow="Across all wikis"
-        title="Wiki health"
-        description="Per-wiki stats — page / source / chat counts, cumulative LLM spend, last-touched timestamp. Sorted by recency. Click any wiki to switch into it."
+        eyebrow="跨所有知识库"
+        title="知识库健康"
+        description="各知识库统计 —— 页面 / 来源 / 对话数量、累计 LLM 花费、最后修改时间。按新旧排序。点击任意知识库即可切换进去。"
       />
 
       {/* Roll-up across every wiki. Useful for the "how much have I actually
           spent on this app" question that doesn't have a clean answer when
           each wiki tracks cost independently. */}
       <section className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <RollupTile label="Total wikis" value={wikis.length.toString()} />
-        <RollupTile label="Total pages" value={totals.pageCount.toString()} />
-        <RollupTile label="Total sources" value={totals.sourceCount.toString()} />
-        <RollupTile label="Cumulative spend" value={formatCost(totals.costCents)} />
+        <RollupTile label="知识库总数" value={wikis.length.toString()} />
+        <RollupTile label="页面总数" value={totals.pageCount.toString()} />
+        <RollupTile label="来源总数" value={totals.sourceCount.toString()} />
+        <RollupTile label="累计花费" value={formatCost(totals.costCents)} />
       </section>
 
       <ul className="space-y-3">
@@ -165,7 +165,7 @@ export default async function DashboardPage() {
 }
 
 function WikiCard({ wiki }: { wiki: WikiHealth }) {
-  const title = wiki.topic ?? "(no topic set)";
+  const title = wiki.topic ?? "（未设置主题）";
 
   return (
     <article
@@ -182,16 +182,16 @@ function WikiCard({ wiki }: { wiki: WikiHealth }) {
             <h2 className="truncate font-display text-h3 font-semibold">{title}</h2>
             {wiki.isActive ? (
               <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
-                Active
+                启用中
               </span>
             ) : null}
             {!wiki.exists ? (
               <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-destructive">
-                Folder missing
+                文件夹缺失
               </span>
             ) : !wiki.initialized ? (
               <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300">
-                Not initialized
+                未初始化
               </span>
             ) : null}
           </div>
@@ -204,7 +204,7 @@ function WikiCard({ wiki }: { wiki: WikiHealth }) {
               href="/"
               className="rounded-md border border-border bg-background px-3 py-1.5 text-xs hover:border-primary/40 hover:bg-accent"
             >
-              Open →
+              打开 →
             </Link>
           ) : wiki.exists ? (
             <SwitchWikiButton path={wiki.path} />
@@ -214,24 +214,24 @@ function WikiCard({ wiki }: { wiki: WikiHealth }) {
 
       {wiki.initialized ? (
         <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
-          <Stat label="Pages" value={wiki.pageCount.toString()} />
-          <Stat label="Sources" value={wiki.sourceCount.toString()} />
-          <Stat label="Chats" value={wiki.chatCount.toString()} />
-          <Stat label="Spend" value={formatCost(wiki.costCents)} />
-          <Stat label="Last touched" value={formatRelative(wiki.lastTouchedMs)} />
+          <Stat label="页面" value={wiki.pageCount.toString()} />
+          <Stat label="来源" value={wiki.sourceCount.toString()} />
+          <Stat label="对话" value={wiki.chatCount.toString()} />
+          <Stat label="花费" value={formatCost(wiki.costCents)} />
+          <Stat label="最后修改" value={formatRelative(wiki.lastTouchedMs)} />
         </dl>
       ) : wiki.exists ? (
         <p className="mt-4 text-ui text-muted-foreground">
-          Folder exists but hasn&apos;t been opened by the app yet. Switch into it to
-          initialize the metadata layer.
+          文件夹存在，但还没有被应用打开过。切换进去即可
+          初始化元数据层。
         </p>
       ) : (
         <p className="mt-4 text-ui text-muted-foreground">
-          The folder this wiki points at no longer exists. Remove it from{" "}
+          这个知识库指向的文件夹已不存在。请在{" "}
           <Link href="/settings?tab=wikis" className="text-primary underline underline-offset-2">
-            Settings → Wikis
+            设置 → 知识库
           </Link>{" "}
-          to clean up the recents list.
+          中移除它，以清理最近使用列表。
         </p>
       )}
     </article>
@@ -269,9 +269,9 @@ function formatRelative(ms: number | null): string {
   const minute = 60 * 1000;
   const hour = 60 * minute;
   const day = 24 * hour;
-  if (diffMs < minute) return "just now";
-  if (diffMs < hour) return `${Math.round(diffMs / minute)}m ago`;
-  if (diffMs < day) return `${Math.round(diffMs / hour)}h ago`;
-  if (diffMs < 30 * day) return `${Math.round(diffMs / day)}d ago`;
+  if (diffMs < minute) return "刚刚";
+  if (diffMs < hour) return `${Math.round(diffMs / minute)} 分钟前`;
+  if (diffMs < day) return `${Math.round(diffMs / hour)} 小时前`;
+  if (diffMs < 30 * day) return `${Math.round(diffMs / day)} 天前`;
   return new Date(ms).toISOString().slice(0, 10);
 }

@@ -5,24 +5,27 @@ import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 
-type SourceItem = {
+export type SourceItem = {
   id: string;
+  title: string;
   filename: string;
   originalName: string | null;
   format: string;
   sizeBytes: number;
   addedAt: string;
-  ingestedAt: string | null;
   url: string | null;
-  title: string | null;
-  pageCount: number;
+  error: string | null;
+  /** A queued/running task is already handling this source. */
+  inFlight: boolean;
 };
 
-// Format icons stay in plain text — easier on the eye than emoji for a
-// reading-first product, and matches the rest of the app's chrome.
+// Format labels stay plain text — easier on the eye than emoji for a
+// reading-first product, and they match the rest of the app's chrome.
 const FORMAT_LABEL: Record<string, string> = {
   markdown: "MD",
+  md: "MD",
   text: "TXT",
+  txt: "TXT",
   html: "HTML",
   url: "URL",
   pdf: "PDF",
@@ -32,31 +35,39 @@ const FORMAT_LABEL: Record<string, string> = {
   image: "IMG",
 };
 
-function relativeDate(iso: string): string {
+export function relativeDate(iso: string): string {
   const d = new Date(iso);
   const diffMs = Date.now() - d.getTime();
   const mins = Math.floor(diffMs / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return "刚刚";
+  if (mins < 60) return `${mins} 分钟前`;
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return `${hours} 小时前`;
   const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
+  if (days < 30) return `${days} 天前`;
   return d.toISOString().slice(0, 10);
 }
 
-function formatSize(n: number): string {
+export function formatSize(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / 1024 / 1024).toFixed(2)} MB`;
 }
 
 type Props = {
-  // Bumping this from the parent forces a re-fetch after a successful ingest.
+  // Bumping this from the parent forces a re-fetch after a successful submit.
   refreshNonce: number;
+  /** Called after retry/delete so the parent can refresh its task queue too. */
+  onChanged?: () => void;
 };
 
-export function SourcesList({ refreshNonce }: Props) {
+/**
+ * The "still needs me" list: uploads that are queued or running, ingest
+ * failures waiting for a retry, and approval-gate proposals waiting for a
+ * decision. Successfully ingested sources are intentionally absent — they are
+ * already part of the wiki and listing them buried the actionable rows.
+ */
+export function SourcesList({ refreshNonce, onChanged }: Props) {
   const [sources, setSources] = useState<SourceItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -75,60 +86,27 @@ export function SourcesList({ refreshNonce }: Props) {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      await fetchSources();
-      void cancelled;
-    })();
-    return () => {
-      cancelled = true;
-    };
+    void fetchSources();
   }, [fetchSources, refreshNonce]);
 
   async function onRetry(s: SourceItem) {
     setBusyId(s.id);
     setActionFlash(null);
     setError(null);
-    const sourceLabel = s.title?.trim() || s.filename;
-    console.log(
-      `%c[Ingest Retry Send] Retrying ingestion for source: "${sourceLabel}"`,
-      "color: #3b82f6; font-weight: bold;"
-    );
+    console.log(`%c[入库重试] 重新提交来源："${s.title}"`, "color: #3b82f6; font-weight: bold;");
     try {
       const res = await fetch(`/api/sources/${s.id}/retry`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({}),
       });
-      const json = (await res.json()) as {
-        ok?: boolean;
-        error?: string;
-        providerUsed?: string;
-        modelUsed?: string;
-        response?: {
-          newPages: Array<{ slug: string; title: string }>;
-          pageUpdates: Array<{ slug: string }>;
-        };
-      };
+      const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
-      console.log(
-        `%c[Ingest Retry Success] Selected ${json.providerUsed || "unknown"} to ingest: "${sourceLabel}" -> Status: Success`,
-        "color: #10b981; font-weight: bold;"
-      );
-      console.log(
-        `%c[Ingest Retry Success] Model used: ${json.modelUsed || "unknown"}`,
-        "color: #10b981;"
-      );
-      const newN = json.response?.newPages.length ?? 0;
-      const updN = json.response?.pageUpdates.length ?? 0;
-      setActionFlash(
-        `Ingested. ${newN} new page${newN === 1 ? "" : "s"}, ${updN} updated.`,
-      );
+      setActionFlash("已重新加入后台任务队列，可关闭页面，任务会继续执行。");
       await fetchSources();
+      onChanged?.();
     } catch (err) {
-      console.error(
-        `[Ingest Retry Failed] source: "${sourceLabel}" -> Status: Failed. Error: ${(err as Error).message}`
-      );
+      console.error(`[入库重试失败] "${s.title}"：${(err as Error).message}`);
       setError((err as Error).message);
     } finally {
       setBusyId(null);
@@ -136,15 +114,9 @@ export function SourcesList({ refreshNonce }: Props) {
   }
 
   async function onDelete(s: SourceItem) {
-    const label =
-      s.title?.trim() || s.originalName?.trim() || s.url?.trim() || s.filename;
-    const isPending = s.ingestedAt === null;
-    const cascadeNote = s.pageCount > 0
-      ? ` It contributed to ${s.pageCount} wiki page${s.pageCount === 1 ? "" : "s"} — those pages stay (with a dangling source reference that lint can clean up).`
-      : "";
-    const msg = isPending
-      ? `Remove "${label}" (pending ingest)?\n\nThe raw file moves to .llm-wiki/trash/raw/ (recoverable for 30 days).`
-      : `Remove "${label}"?${cascadeNote}\n\nThe raw file moves to .llm-wiki/trash/raw/ (recoverable for 30 days).`;
+    const msg = s.inFlight
+      ? `移除"${s.title}"？正在执行的入库任务会被取消，原始文件会移动到 .llm-wiki/trash/raw/（30 天内可恢复）。`
+      : `移除"${s.title}"（尚未成功入库）？原始文件会移动到 .llm-wiki/trash/raw/（30 天内可恢复）。`;
     if (!confirm(msg)) return;
 
     setBusyId(s.id);
@@ -154,8 +126,9 @@ export function SourcesList({ refreshNonce }: Props) {
       const res = await fetch(`/api/sources/${s.id}/delete`, { method: "POST" });
       const json = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
-      setActionFlash(`Removed.`);
+      setActionFlash("已移除。");
       await fetchSources();
+      onChanged?.();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -166,39 +139,37 @@ export function SourcesList({ refreshNonce }: Props) {
   if (error && sources === null) {
     return (
       <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-        Could not load sources: {error}
+        无法读取来源列表：{error}
       </p>
     );
   }
 
   if (sources === null) {
-    return <p className="text-sm text-muted-foreground">Loading sources…</p>;
+    return <p className="text-sm text-muted-foreground">正在载入来源…</p>;
   }
 
   if (sources.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        Nothing ingested yet. Use the form below to add your first source.
+        暂无需处理的来源。已成功入库的条目已从列表中隐去，可在
+        <Link href="/wiki" className="mx-1 underline underline-offset-2">
+          Wiki
+        </Link>
+        中查看它们的成果。
       </p>
     );
   }
 
-  // Newest first — most recent ingest is what the user usually wants to see.
-  const sorted = [...sources].sort((a, b) =>
-    a.addedAt < b.addedAt ? 1 : a.addedAt > b.addedAt ? -1 : 0,
-  );
-
-  const pendingCount = sources.filter((s) => s.ingestedAt === null).length;
+  const failedCount = sources.filter((s) => !s.inFlight && s.error).length;
+  const waitingCount = sources.filter((s) => s.inFlight || !s.error).length;
 
   return (
     <div className="space-y-3">
-      {pendingCount > 0 ? (
-        <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
-          {pendingCount} source{pendingCount === 1 ? "" : "s"} pending — the
-          first ingest didn't complete. Click <strong>Retry</strong> (uses the
-          ingest model from Settings) or <strong>Delete</strong> to drop them.
-        </p>
-      ) : null}
+      <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+        {failedCount > 0
+          ? `${failedCount} 个来源入库失败，可点击"重试"重新排队。`
+          : `${waitingCount} 个来源正在后台排队或执行，可随时关闭页面。`}
+      </p>
 
       {actionFlash ? (
         <p className="rounded-md bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
@@ -212,14 +183,8 @@ export function SourcesList({ refreshNonce }: Props) {
       ) : null}
 
       <ul className="divide-y divide-border">
-        {sorted.map((s) => {
-          const label =
-            s.title?.trim() ||
-            s.originalName?.trim() ||
-            s.url?.trim() ||
-            s.filename;
+        {sources.map((s) => {
           const formatBadge = FORMAT_LABEL[s.format] ?? s.format.toUpperCase();
-          const isPending = s.ingestedAt === null;
           const isBusy = busyId === s.id;
           return (
             <li
@@ -227,51 +192,56 @@ export function SourcesList({ refreshNonce }: Props) {
               className="flex flex-wrap items-baseline justify-between gap-2 py-2.5"
             >
               <div className="min-w-0 flex-1">
-                {/* Title area is a link to /sources/[id] — buttons sit
-                    outside the link so clicks don't bubble. */}
+                {/* Title links to /sources/[id]; buttons sit outside the link
+                    so clicks don't bubble. */}
                 <Link
                   href={`/sources/${s.id}`}
                   prefetch
                   className="block min-w-0 hover:text-primary"
                 >
-                  <p className="truncate text-sm font-medium">{label}</p>
+                  <p className="truncate text-sm font-medium">{s.title}</p>
                 </Link>
                 <p className="mt-0.5 text-[11px] text-muted-foreground">
                   <span className="font-mono">{formatBadge}</span>
                   {" · "}
                   {formatSize(s.sizeBytes)}
-                  {" · added "}
+                  {" · 添加于 "}
                   {relativeDate(s.addedAt)}
                 </p>
+                {s.error ? (
+                  <p className="mt-1 text-[11px] text-destructive">
+                    上次失败：{s.error.slice(0, 160)}
+                  </p>
+                ) : null}
               </div>
               <div className="flex shrink-0 items-center gap-2 text-[11px]">
-                {isPending ? (
-                  <>
-                    <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-amber-700 dark:text-amber-300">
-                      pending
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => void onRetry(s)}
-                      disabled={busyId !== null}
-                    >
-                      {isBusy ? "Retrying…" : "Retry"}
-                    </Button>
-                  </>
-                ) : (
-                  <span className="text-muted-foreground">
-                    {s.pageCount} page{s.pageCount === 1 ? "" : "s"}
-                  </span>
-                )}
+                <span
+                  className={
+                    s.inFlight
+                      ? "rounded-full bg-amber-500/10 px-2 py-0.5 text-amber-700 dark:text-amber-300"
+                      : s.error
+                        ? "rounded-full bg-destructive/10 px-2 py-0.5 text-destructive"
+                        : "rounded-full bg-secondary px-2 py-0.5 text-secondary-foreground"
+                  }
+                >
+                  {s.inFlight ? "处理中" : s.error ? "失败" : "待处理"}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void onRetry(s)}
+                  disabled={busyId !== null}
+                >
+                  {isBusy ? "提交中…" : "重试"}
+                </Button>
                 <Button
                   size="sm"
                   variant="ghost"
                   onClick={() => void onDelete(s)}
                   disabled={busyId !== null}
-                  title="Remove from the list. Raw file goes to .llm-wiki/trash/raw/."
+                  title="从列表移除，原始文件进入 .llm-wiki/trash/raw/"
                 >
-                  {isBusy && !isPending ? "Removing…" : "Delete"}
+                  {isBusy ? "移除中…" : "删除"}
                 </Button>
               </div>
             </li>

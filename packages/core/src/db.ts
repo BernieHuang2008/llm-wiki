@@ -19,8 +19,33 @@ CREATE TABLE IF NOT EXISTS sources (
   added_at TEXT NOT NULL,
   ingested_at TEXT,
   url TEXT,
-  title TEXT
+  title TEXT,
+  ingest_error TEXT
 );
+
+-- Background task queue. Every LLM-touching operation (ingest, query, chat,
+-- link fixes) is a row here, executed by a long-lived executor so closing the
+-- browser cannot interrupt the work. Status 'interrupted' marks a row that was
+-- still running when the process died.
+CREATE TABLE IF NOT EXISTS tasks (
+  id TEXT PRIMARY KEY,
+  wiki_path TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  status TEXT NOT NULL,
+  input TEXT NOT NULL,
+  output TEXT,
+  error TEXT,
+  progress TEXT,
+  attempts INTEGER NOT NULL DEFAULT 1,
+  source_id TEXT,
+  created_at TEXT NOT NULL,
+  started_at TEXT,
+  finished_at TEXT,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS tasks_status_created ON tasks (status, created_at);
+CREATE INDEX IF NOT EXISTS tasks_source ON tasks (source_id);
 
 CREATE TABLE IF NOT EXISTS pages (
   slug TEXT PRIMARY KEY,
@@ -87,6 +112,18 @@ CREATE TABLE IF NOT EXISTS sync_state (
 
 export function runMigrations(db: Db): void {
   db.exec(SCHEMA_SQL);
+  addColumnIfMissing(db, "sources", "ingest_error", "TEXT");
+}
+
+/**
+ * `CREATE TABLE IF NOT EXISTS` never adds columns to a table that already
+ * exists, so wikis created before a column landed need an explicit ALTER.
+ * Idempotent: the pragma tells us what is already there.
+ */
+function addColumnIfMissing(db: Db, table: string, column: string, type: string): void {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (cols.some((c) => c.name === column)) return;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
 }
 
 function applyPragmas(db: Db): void {

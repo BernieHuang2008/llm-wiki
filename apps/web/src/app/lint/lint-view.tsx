@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { PageContainer, PageHeader } from "@/components/page-shell";
 import { Button } from "@/components/ui/button";
+import { fetchTask, isActive } from "@/lib/task-client";
 import { cn } from "@/lib/utils";
 
 type Severity = "high" | "medium" | "low";
@@ -136,13 +137,29 @@ type FixedState = {
   summary?: string | null;
 };
 
+/** Polls a background link-fix task until it settles and returns its payload. */
+async function awaitFixTask(taskId: string): Promise<Record<string, unknown>> {
+  for (;;) {
+    const task = await fetchTask(taskId);
+    if (!isActive(task)) {
+      if (task.status !== "succeeded") {
+        throw new Error(task.error ?? "修复任务失败。");
+      }
+      return (task.output ?? {}) as Record<string, unknown>;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 900));
+  }
+}
+
 export function LintView() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<LintResult | null>(null);
   const [model, setModel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fixedKeys, setFixedKeys] = useState<Map<string, FixedState>>(new Map());
-  const [fixingKey, setFixingKey] = useState<string | null>(null);
+  // A Set, not a single key: every fix now runs as its own background task, so
+  // the user can queue several without waiting for one to finish.
+  const [fixingKeys, setFixingKeys] = useState<Set<string>>(new Set());
 
   // Bulk actions (top bar)
   const [bulkBusy, setBulkBusy] = useState<null | "rebuild-index" | "fix-all-broken">(null);
@@ -207,84 +224,84 @@ export function LintView() {
     });
   }
 
+  function setFixing(key: string, active: boolean) {
+    setFixingKeys((prev) => {
+      const next = new Set(prev);
+      if (active) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }
+
+  /** Submits a link-fix task and waits (by polling) for its result. */
+  async function runFix(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const res = await fetch("/api/lint/fix", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const json = (await res.json()) as {
+      ok?: boolean;
+      error?: string;
+      task?: { id: string };
+    };
+    if (!res.ok || !json.ok || !json.task) {
+      throw new Error(json.error ?? `HTTP ${res.status}`);
+    }
+    return awaitFixTask(json.task.id);
+  }
+
   async function applyRemoveBrokenLink(issue: LintIssue, key: string) {
     const brokenSlug = brokenLinkSlug(issue.description);
     const pageSlug = issue.affectedPages[0];
     if (!brokenSlug || !pageSlug) return;
-    setFixingKey(key);
+    setFixing(key, true);
     setError(null);
     try {
-      const res = await fetch("/api/lint/fix", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ type: "remove-broken-link", pageSlug, brokenSlug }),
-      });
-      const json = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      await runFix({ type: "remove-broken-link", pageSlug, brokenSlug });
       markFixed(key, "removed");
     } catch (err) {
       setError((err as Error).message);
     } finally {
-      setFixingKey(null);
+      setFixing(key, false);
     }
   }
 
   async function applyCreateStub(missingSlug: string, key: string) {
-    setFixingKey(key);
+    setFixing(key, true);
     setError(null);
     try {
-      const res = await fetch("/api/lint/fix", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ type: "create-stub-page", missingSlug }),
-      });
-      const json = (await res.json()) as {
-        kind?: "stub-created" | "index-rebuilt";
-        error?: string;
-      };
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
-      markFixed(key, json.kind === "index-rebuilt" ? "index-rebuilt" : "stub-created");
+      const out = await runFix({ type: "create-stub-page", missingSlug });
+      markFixed(key, out["kind"] === "index-rebuilt" ? "index-rebuilt" : "stub-created");
     } catch (err) {
       setError((err as Error).message);
     } finally {
-      setFixingKey(null);
+      setFixing(key, false);
     }
   }
 
   async function applySuggestedFix(issue: LintIssue, key: string) {
     const pageSlug = targetPageForFix(issue.affectedPages, issue.suggestedFix);
     if (!pageSlug || !issue.suggestedFix) return;
-    setFixingKey(key);
+    setFixing(key, true);
     setError(null);
     try {
-      const res = await fetch("/api/lint/fix", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          type: "apply-suggested-fix",
-          pageSlug,
-          issueDescription: issue.description,
-          fixInstruction: issue.suggestedFix,
-        }),
+      const out = await runFix({
+        type: "apply-suggested-fix",
+        pageSlug,
+        issueDescription: issue.description,
+        fixInstruction: issue.suggestedFix,
       });
-      const json = (await res.json()) as {
-        ok?: boolean;
-        kind?: "fix-applied" | "fix-noop";
-        slug?: string;
-        changeSummary?: string;
-        error?: string;
-      };
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
       // Stash the targeted slug + summary so the per-issue flash can show
       // which page actually got edited and what the LLM said it changed.
-      markFixed(key, json.kind === "fix-noop" ? "fix-noop" : "fix-applied", {
-        slug: json.slug ?? pageSlug,
-        summary: json.changeSummary ?? null,
+      markFixed(key, out["kind"] === "fix-noop" ? "fix-noop" : "fix-applied", {
+        slug: typeof out["slug"] === "string" ? out["slug"] : pageSlug,
+        summary: typeof out["changeSummary"] === "string" ? out["changeSummary"] : null,
       });
     } catch (err) {
       setError((err as Error).message);
     } finally {
-      setFixingKey(null);
+      setFixing(key, false);
     }
   }
 
@@ -293,22 +310,12 @@ export function LintView() {
     setBulkFlash(null);
     setError(null);
     try {
-      const res = await fetch("/api/lint/fix", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ type: "rebuild-index" }),
-      });
-      const json = (await res.json()) as {
-        added?: string[];
-        removed?: string[];
-        totalPages?: number;
-        error?: string;
-      };
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
-      const addedN = json.added?.length ?? 0;
-      const removedN = json.removed?.length ?? 0;
+      const out = await runFix({ type: "rebuild-index" });
+      const addedN = Array.isArray(out["added"]) ? out["added"].length : 0;
+      const removedN = Array.isArray(out["removed"]) ? out["removed"].length : 0;
+      const total = typeof out["totalPages"] === "number" ? out["totalPages"] : 0;
       setBulkFlash(
-        `Index rebuilt — ${json.totalPages ?? 0} pages indexed, ${addedN} added, ${removedN} orphan ${removedN === 1 ? "entry" : "entries"} removed.`,
+        `索引已重建 —— 共索引 ${total} 个页面，新增 ${addedN} 条，移除 ${removedN} 条孤立条目。`,
       );
     } catch (err) {
       setError((err as Error).message);
@@ -321,7 +328,7 @@ export function LintView() {
     if (items.length === 0) return;
     if (
       !confirm(
-        `Remove ${items.length} broken link${items.length === 1 ? "" : "s"} across the wiki? This rewrites the affected pages. (Originals are backed up to .llm-wiki/page-history/.)`,
+        `要移除全库 ${items.length} 处失效链接吗？这会重写受影响的页面（原文件会备份到 .llm-wiki/page-history/）。`,
       )
     )
       return;
@@ -329,31 +336,19 @@ export function LintView() {
     setBulkFlash(null);
     setError(null);
     try {
-      const res = await fetch("/api/lint/fix", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ type: "fix-all-broken-links", items }),
-      });
-      const json = (await res.json()) as {
-        fixed?: Array<unknown>;
-        failed?: Array<{ pageSlug: string; brokenSlug: string; error: string }>;
-        error?: string;
-      };
-      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
-      const fixedN = json.fixed?.length ?? 0;
-      const failedN = json.failed?.length ?? 0;
+      const out = await runFix({ type: "fix-all-broken-links", items });
+      const fixed = Array.isArray(out["fixed"])
+        ? (out["fixed"] as Array<{ pageSlug: string; brokenSlug: string }>)
+        : [];
+      const failed = Array.isArray(out["failed"]) ? out["failed"] : [];
       setBulkFlash(
-        failedN === 0
-          ? `Removed ${fixedN} broken link${fixedN === 1 ? "" : "s"}.`
-          : `Removed ${fixedN}; ${failedN} failed (likely already gone).`,
+        failed.length === 0
+          ? `已移除 ${fixed.length} 处失效链接。`
+          : `已移除 ${fixed.length} 处；${failed.length} 处失败（可能已不存在）。`,
       );
       // Mark each fix as done locally so the per-issue buttons collapse.
-      if (json.fixed && result) {
-        const fixedSet = new Set(
-          (json.fixed as Array<{ pageSlug: string; brokenSlug: string }>).map(
-            (i) => `${i.pageSlug}|${i.brokenSlug}`,
-          ),
-        );
+      if (result) {
+        const fixedSet = new Set(fixed.map((i) => `${i.pageSlug}|${i.brokenSlug}`));
         for (let i = 0; i < result.issues.length; i++) {
           const issue = result.issues[i]!;
           if (issue.type !== "broken-link") continue;
@@ -391,13 +386,13 @@ export function LintView() {
   return (
     <PageContainer>
       <PageHeader
-        eyebrow="Wiki health check"
-        title="Lint"
-        description="A fast local scan for broken links and orphans, plus an LLM pass for contradictions, gaps, stale claims, and missing pages."
+        eyebrow="知识库体检"
+        title="体检"
+        description="先在本地快速扫描失效链接与孤岛页面，再由模型检查矛盾、缺口、过时说法与缺失页面。"
         actions={
           <>
             <Button onClick={runLint} disabled={busy}>
-              {busy ? "Linting…" : result ? "Re-run lint" : "Run lint"}
+              {busy ? "体检中…" : result ? "重新体检" : "开始体检"}
             </Button>
             {model ? (
               <span className="text-caption text-muted-foreground">via {model}</span>
@@ -709,9 +704,9 @@ export function LintView() {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => applyRemoveBrokenLink(issue, key)}
-                                  disabled={fixingKey !== null || bulkBusy !== null}
+                                  disabled={bulkBusy !== null || fixingKeys.has(key)}
                                 >
-                                  {fixingKey === key ? "Removing…" : "Remove broken link"}
+                                  {fixingKeys.has(key) ? "提交中…" : "移除失效链接"}
                                 </Button>
                               ) : null}
                               {canCreateStub && targetSlug ? (
@@ -719,14 +714,14 @@ export function LintView() {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => applyCreateStub(targetSlug, key)}
-                                  disabled={fixingKey !== null || bulkBusy !== null}
-                                  title="Drafts a small starter page using the ingest model and context from referencing pages."
+                                  disabled={bulkBusy !== null || fixingKeys.has(key)}
+                                  title="使用入库模型并结合引用页的上下文起草一个简短的新页面。"
                                 >
-                                  {fixingKey === key
-                                    ? "Drafting…"
+                                  {fixingKeys.has(key)
+                                    ? "起草中…"
                                     : isBrokenLink
-                                      ? "Create page"
-                                      : "Create stub"}
+                                      ? "创建页面"
+                                      : "创建占位页"}
                                 </Button>
                               ) : null}
                               {canApplySuggested ? (
@@ -734,10 +729,10 @@ export function LintView() {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => applySuggestedFix(issue, key)}
-                                  disabled={fixingKey !== null || bulkBusy !== null}
-                                  title="Sends the page + the fix instruction to the lint model and writes the result back."
+                                  disabled={bulkBusy !== null || fixingKeys.has(key)}
+                                  title="把页面与修复指令一起发给体检模型，并写回结果。"
                                 >
-                                  {fixingKey === key ? "Applying…" : "Apply suggested fix"}
+                                  {fixingKeys.has(key) ? "处理中…" : "应用修复建议"}
                                 </Button>
                               ) : null}
                             </div>

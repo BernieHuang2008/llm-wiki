@@ -37,6 +37,18 @@ import {
   listUsageRows,
 } from "./db-usage";
 import { META_DB_FILENAME, openDb, openInMemoryDb, runMigrations, type Db } from "./db";
+import {
+  claimNextTask,
+  createTask,
+  failTask,
+  finishTask,
+  getTask,
+  listActiveTasks,
+  listTasksForSource,
+  markStuckIngestTasksAsFailed,
+  recoverInterruptedTasks,
+  requeueTask,
+} from "./tasks";
 import type { ChatRow, PageRow, SourceRow } from "./types";
 import { WIKI_PATHS } from "./wiki";
 
@@ -48,6 +60,7 @@ const ALL_TABLES = [
   "chats",
   "usage",
   "response_cache",
+  "tasks",
 ];
 
 function tableNames(db: Db): string[] {
@@ -186,6 +199,7 @@ describe("sources CRUD", () => {
     ingested_at: null,
     url: null,
     title: "Shor 1994",
+    ingest_error: null,
   };
 
   it("round-trips and exposes nullable fields", () => {
@@ -232,6 +246,7 @@ describe("page_sources cascading FK", () => {
       ingested_at: null,
       url: null,
       title: null,
+      ingest_error: null,
     });
     linkPageSource(db, "p", "s");
     expect(listSourceIdsForPage(db, "p")).toEqual(["s"]);
@@ -387,5 +402,108 @@ describe("pages_fts search", () => {
     expect(searchPages(db, "first")).toEqual([]);
     expect(searchPages(db, "second").map((h) => h.slug)).toEqual(["p"]);
     db.close();
+  });
+});
+
+describe("background tasks", () => {
+  let db: Db;
+  beforeEach(() => {
+    db = openInMemoryDb();
+  });
+  afterEach(() => {
+    db.close();
+  });
+
+  it("creates a pending task and parses its JSON payload back", () => {
+    const task = createTask(db, "/tmp/wiki", "query", { question: "什么是量子纠缠？" });
+    expect(task.status).toBe("pending");
+    expect(task.source_id).toBeNull();
+
+    const read = getTask(db, task.id);
+    expect(read?.kind).toBe("query");
+    expect((read?.input as { question?: string }).question).toBe("什么是量子纠缠？");
+  });
+
+  it("links ingest tasks to their source row", () => {
+    const task = createTask(db, "/tmp/wiki", "ingest_file", {
+      sourceId: "src-1",
+      filename: "a.pdf",
+      title: "A",
+      sizeBytes: 10,
+    });
+    expect(task.source_id).toBe("src-1");
+    expect(listTasksForSource(db, "src-1").map((t) => t.id)).toEqual([task.id]);
+  });
+
+  it("claims the oldest pending task exactly once", () => {
+    const first = createTask(db, "/tmp/wiki", "query", { question: "one" });
+    createTask(db, "/tmp/wiki", "query", { question: "two" });
+
+    const claimed = claimNextTask(db);
+    expect(claimed?.id).toBe(first.id);
+    expect(claimed?.status).toBe("running");
+    // A second claim must not see the same row again.
+    expect(claimNextTask(db)?.id).not.toBe(first.id);
+    expect(getTask(db, first.id)?.status).toBe("running");
+  });
+
+  it("filters claims by kind so ingest stays on its own lane", () => {
+    const query = createTask(db, "/tmp/wiki", "query", { question: "q" });
+    const claimed = claimNextTask(db, ["ingest_text"]);
+    expect(claimed).toBeNull();
+    expect(getTask(db, query.id)?.status).toBe("pending");
+  });
+
+  it("finishTask stores the result and clears the active list", () => {
+    const task = createTask(db, "/tmp/wiki", "query", { question: "q" });
+    claimNextTask(db);
+    expect(listActiveTasks(db).map((t) => t.id)).toEqual([task.id]);
+
+    finishTask(db, task.id, { answer: "42" });
+    const done = getTask(db, task.id);
+    expect(done?.status).toBe("succeeded");
+    expect(done?.output).toEqual({ answer: "42" });
+    expect(listActiveTasks(db)).toEqual([]);
+  });
+
+  it("failTask records the reason and the attempt count survives requeue", () => {
+    const task = createTask(db, "/tmp/wiki", "ingest_text", {
+      sourceId: "src-9",
+      title: "T",
+    });
+    claimNextTask(db);
+    requeueTask(db, task.id, "重试中");
+    expect(getTask(db, task.id)?.status).toBe("pending");
+
+    claimNextTask(db);
+    failTask(db, task.id, "模型返回了无效 JSON");
+    const failed = getTask(db, task.id);
+    expect(failed?.status).toBe("failed");
+    expect(failed?.error).toBe("模型返回了无效 JSON");
+    expect(failed?.finished_at).not.toBeNull();
+  });
+
+  it("recoverInterruptedTasks marks rows left running as interrupted", () => {
+    const task = createTask(db, "/tmp/wiki", "chat", { chatId: "c1", message: "hi" });
+    claimNextTask(db);
+    expect(recoverInterruptedTasks(db)).toBe(1);
+
+    const recovered = getTask(db, task.id);
+    expect(recovered?.status).toBe("interrupted");
+    expect(recovered?.error).toContain("中断");
+  });
+
+  it("markStuckIngestTasksAsFailed closes out an unfinished source", () => {
+    const task = createTask(db, "/tmp/wiki", "ingest_file", {
+      sourceId: "src-7",
+      filename: "x.md",
+      title: "X",
+      sizeBytes: 1,
+    });
+    claimNextTask(db);
+    expect(markStuckIngestTasksAsFailed(db, "src-7", "已被重试取代")).toBe(1);
+    const closed = getTask(db, task.id);
+    expect(closed?.status).toBe("failed");
+    expect(closed?.error).toBe("已被重试取代");
   });
 });

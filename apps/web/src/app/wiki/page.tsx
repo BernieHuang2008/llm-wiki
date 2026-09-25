@@ -26,39 +26,39 @@ const TYPE_ORDER = ["overview", "concept", "entity", "comparison", "source"] as 
 type TypeKey = (typeof TYPE_ORDER)[number];
 
 const TYPE_LABEL: Record<TypeKey, string> = {
-  overview: "Overview",
-  concept: "Concept",
-  entity: "Entity",
-  comparison: "Comparison",
-  source: "Source",
+  overview: "概览",
+  concept: "概念",
+  entity: "实体",
+  comparison: "对比",
+  source: "来源",
 };
 
 const TYPE_HEADING: Record<TypeKey, string> = {
-  overview: "Overviews",
-  concept: "Concepts",
-  entity: "Entities",
-  comparison: "Comparisons",
-  source: "Sources",
+  overview: "概览",
+  concept: "概念",
+  entity: "实体",
+  comparison: "对比",
+  source: "来源",
 };
 
 const TYPE_DESCRIPTION: Record<TypeKey, string> = {
-  overview: "High-level synthesis pages that tie the topic together.",
-  concept: "Ideas, techniques, frameworks, theorems.",
-  entity: "People, organizations, products, places.",
-  comparison: "Two or more things contrasted side-by-side.",
-  source: "Standalone source-summary pages.",
+  overview: "将主题串联起来的高层综述页面。",
+  concept: "思想、技术、框架与定理。",
+  entity: "人物、组织、产品与地点。",
+  comparison: "两个或多个事物的并列对比。",
+  source: "独立的来源摘要页面。",
 };
 
 function relativeDate(iso: string): string {
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return iso;
   const days = Math.floor((Date.now() - t) / (1000 * 60 * 60 * 24));
-  if (days < 1) return "today";
-  if (days === 1) return "yesterday";
-  if (days < 7) return `${days}d ago`;
-  if (days < 30) return `${Math.floor(days / 7)}w ago`;
-  if (days < 365) return `${Math.floor(days / 30)}mo ago`;
-  return `${Math.floor(days / 365)}y ago`;
+  if (days < 1) return "今天";
+  if (days === 1) return "昨天";
+  if (days < 7) return `${days} 天前`;
+  if (days < 30) return `${Math.floor(days / 7)} 周前`;
+  if (days < 365) return `${Math.floor(days / 30)} 个月前`;
+  return `${Math.floor(days / 365)} 年前`;
 }
 
 // Defensive: strip any [[wikilink]] markup that snuck into a summary so the
@@ -105,24 +105,23 @@ export default async function WikiIndexPage({
     return (
       <PageContainer width="lg">
         <PageHeader
-          eyebrow="Knowledge base"
+          eyebrow="知识库"
           title="Wiki"
-          description="LLM-maintained pages, grouped by type. The agent builds and cross-links them from your sources."
+          description="由 LLM 维护的页面，按类型分组。智能体会基于你的来源构建并交叉链接它们。"
         />
         <div className="rounded-lg border border-dashed border-border bg-card p-10 text-center">
           <p className="font-display text-h3 font-semibold">
-            Your wiki is empty
+            知识库还是空的
           </p>
           <p className="mx-auto mt-2 max-w-md text-ui text-muted-foreground">
-            Add a source on the{" "}
+            在{" "}
             <Link
               href="/sources"
               className="text-primary underline underline-offset-2"
             >
-              Sources
+              来源
             </Link>{" "}
-            page (paste text, drop a PDF, or pull a URL) and the agent will compile it
-            into cross-linked pages here.
+            页面添加一个来源（粘贴文本、放入 PDF 或抓取 URL），智能体会将其编译为互相链接的页面。
           </p>
         </div>
       </PageContainer>
@@ -160,7 +159,7 @@ export default async function WikiIndexPage({
   return (
     <PageContainer width="wide">
       <PageHeader
-        eyebrow="Knowledge base"
+        eyebrow="知识库"
         title="Wiki"
         description={summary}
         actions={
@@ -168,7 +167,7 @@ export default async function WikiIndexPage({
             href="/query"
             className="text-ui text-primary underline underline-offset-2 hover:text-primary/80"
           >
-            Ask a question →
+            提问 →
           </Link>
         }
       />
@@ -224,7 +223,7 @@ export default async function WikiIndexPage({
                       </p>
                     ) : (
                       <p className="mt-2 text-ui italic text-muted-foreground/60">
-                        No summary yet — open page to read.
+                        暂无摘要——打开页面阅读。
                       </p>
                     )}
                     {p.tags && p.tags.length > 0 ? (
@@ -248,7 +247,7 @@ export default async function WikiIndexPage({
       </div>
 
       <p className="mt-10 text-caption text-muted-foreground">
-        Wiki folder:{" "}
+        Wiki 文件夹：{" "}
         <code className="font-mono break-all text-foreground/70">{wikiPath}</code>
       </p>
     </PageContainer>
@@ -264,14 +263,12 @@ function formatSummary(
   total: number,
   lastUpdate: string | undefined,
 ): string {
-  const parts: string[] = [`${total} page${total === 1 ? "" : "s"}`];
+  const parts: string[] = [`${total} 个页面`];
   for (const t of TYPE_ORDER) {
     const list = byType.get(t);
     if (!list || list.length === 0) continue;
-    parts.push(
-      `${list.length} ${TYPE_LABEL[t].toLowerCase()}${list.length === 1 ? "" : "s"}`,
-    );
+    parts.push(`${list.length} 个${TYPE_LABEL[t]}`);
   }
-  if (lastUpdate) parts.push(`last update ${relativeDate(lastUpdate)}`);
+  if (lastUpdate) parts.push(`最后更新于 ${relativeDate(lastUpdate)}`);
   return parts.join(" · ");
 }

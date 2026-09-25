@@ -17,15 +17,15 @@ const MAX_RAW_BYTES = 1_000_000; // 1 MB
 const FORMAT_LABEL: Record<string, string> = {
   markdown: "Markdown",
   md: "Markdown",
-  text: "Plain text",
-  txt: "Plain text",
+  text: "纯文本",
+  txt: "纯文本",
   html: "HTML",
-  url: "URL extract",
+  url: "网页正文提取",
   pdf: "PDF",
   docx: "DOCX",
   pptx: "PPTX",
   xlsx: "XLSX",
-  image: "Image",
+  image: "图片",
 };
 
 function formatSize(n: number): string {
@@ -86,10 +86,10 @@ export default async function SourceDetailPage({
       // hits non-text bytes.
       if (rawText.includes("�")) {
         rawText = null;
-        rawError = "Binary file — open in an editor that handles this format.";
+        rawError = "二进制文件，请用支持该格式的编辑器打开。";
       }
     } catch (err) {
-      rawError = (err as Error).message ?? "failed to read raw file";
+      rawError = (err as Error).message ?? "读取原始文件失败";
     }
 
     const title =
@@ -99,7 +99,7 @@ export default async function SourceDetailPage({
     return (
       <PageContainer width="lg">
         <PageHeader
-          eyebrow="Source"
+          eyebrow="来源"
           title={title}
           description={
             <span className="font-mono text-[13px] break-all">{rawPath}</span>
@@ -109,7 +109,7 @@ export default async function SourceDetailPage({
               href="/sources"
               className="text-ui text-primary underline underline-offset-2 hover:text-primary/80"
             >
-              ← All sources
+              ← 全部来源
             </Link>
           }
         />
@@ -119,13 +119,13 @@ export default async function SourceDetailPage({
         <dl className="mb-6 grid grid-cols-2 gap-x-6 gap-y-2 rounded-md border border-border/70 bg-card p-4 text-sm sm:grid-cols-4">
           <div>
             <dt className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Format
+              格式
             </dt>
             <dd className="mt-0.5 font-medium">{formatLabel}</dd>
           </div>
           <div>
             <dt className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Size
+              大小
             </dt>
             <dd className="mt-0.5 font-medium tabular-nums">
               {formatSize(source.size_bytes)}
@@ -133,22 +133,22 @@ export default async function SourceDetailPage({
           </div>
           <div>
             <dt className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Added
+              添加时间
             </dt>
             <dd className="mt-0.5 font-mono text-[12px]">{formatDate(source.added_at)}</dd>
           </div>
           <div>
             <dt className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Ingested
+              入库时间
             </dt>
             <dd className="mt-0.5 font-mono text-[12px]">
-              {source.ingested_at ? formatDate(source.ingested_at) : "pending"}
+              {source.ingested_at ? formatDate(source.ingested_at) : "待处理"}
             </dd>
           </div>
           {source.original_name ? (
             <div className="col-span-2">
               <dt className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Original filename
+                原始文件名
               </dt>
               <dd className="mt-0.5 font-mono text-[12px]">{source.original_name}</dd>
             </div>
@@ -156,7 +156,7 @@ export default async function SourceDetailPage({
           {source.url ? (
             <div className="col-span-2">
               <dt className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Source URL
+                来源网址
               </dt>
               <dd className="mt-0.5">
                 <a
@@ -178,7 +178,7 @@ export default async function SourceDetailPage({
         {pages.length > 0 ? (
           <section className="mb-6 rounded-md border border-border/70 bg-card p-4">
             <h2 className="mb-2 text-caption font-semibold uppercase tracking-wider text-muted-foreground">
-              Contributed to {pages.length} wiki page{pages.length === 1 ? "" : "s"}
+              已贡献到 {pages.length} 个 wiki 页面
             </h2>
             <ul className="flex flex-wrap gap-1.5">
               {pages.map((p) => (
@@ -199,14 +199,14 @@ export default async function SourceDetailPage({
             renders nicely; plain text falls through the same renderer. */}
         <section>
           <h2 className="mb-3 text-caption font-semibold uppercase tracking-wider text-muted-foreground">
-            Raw content
+            原始内容
           </h2>
           {rawError ? (
             <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200">
               <p>{rawError}</p>
               <p className="mt-2 text-xs">
-                Open the file at{" "}
-                <code className="font-mono break-all">{rawPath}</code> in your editor.
+                请在编辑器中打开{" "}
+                <code className="font-mono break-all">{rawPath}</code>。
               </p>
             </div>
           ) : rawText ? (
@@ -216,13 +216,13 @@ export default async function SourceDetailPage({
               </article>
               {truncated ? (
                 <p className="mt-2 text-caption text-muted-foreground">
-                  Truncated at 1 MB. Full content is on disk at{" "}
-                  <code className="font-mono break-all">{rawPath}</code>.
+                  已截断到 1 MB。完整内容位于磁盘上的{" "}
+                  <code className="font-mono break-all">{rawPath}</code>。
                 </p>
               ) : null}
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">No content available.</p>
+            <p className="text-sm text-muted-foreground">暂无内容。</p>
           )}
         </section>
       </PageContainer>

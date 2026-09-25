@@ -61,10 +61,10 @@ export function UndoDeleteBanner({ slug, title, trashFilename }: Props) {
   return (
     <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm">
       <div className="flex-1 text-emerald-800 dark:text-emerald-200">
-        Moved <strong>{title}</strong> to trash.{" "}
+        已将 <strong>{title}</strong> 移入回收站。{" "}
         <span className="text-emerald-700/80 dark:text-emerald-300/80">
-          Recoverable from <code className="font-mono text-[11px]">.llm-wiki/trash/wiki/</code>{" "}
-          for 30 days.
+          可在 <code className="font-mono text-[11px]">.llm-wiki/trash/wiki/</code>{" "}
+          中恢复，保留 30 天。
         </span>
         {error ? (
           <span className="mt-1 block text-destructive">{error}</span>
@@ -77,7 +77,7 @@ export function UndoDeleteBanner({ slug, title, trashFilename }: Props) {
           onClick={() => void undo()}
           disabled={busy}
         >
-          {busy ? "Restoring…" : "Undo"}
+          {busy ? "正在恢复…" : "撤销"}
         </Button>
         <button
           type="button"
@@ -85,7 +85,7 @@ export function UndoDeleteBanner({ slug, title, trashFilename }: Props) {
           disabled={busy}
           className="text-xs text-emerald-700/70 hover:text-emerald-900 dark:text-emerald-300/70 dark:hover:text-emerald-100"
         >
-          dismiss
+          关闭
         </button>
       </div>
     </div>

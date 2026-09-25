@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { TasksPanel } from "@/components/tasks-panel";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { WikiSwitcher } from "@/components/wiki-switcher";
 import { cn } from "@/lib/utils";
@@ -12,17 +13,17 @@ import { cn } from "@/lib/utils";
 // out, conversation, hygiene).
 const PRIMARY_NAV = [
   { label: "Wiki", href: "/wiki" },
-  { label: "Graph", href: "/graph" },
-  { label: "Sources", href: "/sources" },
-  { label: "Query", href: "/query" },
-  { label: "Chats", href: "/chats" },
-  { label: "Lint", href: "/lint" },
+  { label: "图谱", href: "/graph" },
+  { label: "来源", href: "/sources" },
+  { label: "查询", href: "/query" },
+  { label: "对话", href: "/chats" },
+  { label: "体检", href: "/lint" },
 ] as const;
 
 // Utility cluster — config + meta. Kept visually separate from primary nav.
 const UTIL_NAV = [
   { label: "Schema", href: "/schema" },
-  { label: "Settings", href: "/settings" },
+  { label: "设置", href: "/settings" },
 ] as const;
 
 export function AppHeader() {
@@ -36,7 +37,7 @@ export function AppHeader() {
       <Link
         href="/"
         className="group flex items-center gap-2.5"
-        aria-label="Home"
+        aria-label="首页"
       >
         <span
           aria-hidden
@@ -71,6 +72,10 @@ export function AppHeader() {
       </nav>
 
       <div className="flex flex-1 items-center justify-end gap-3">
+        {/* Background-work indicator. Sits next to the palette hint because
+            both answer "what is the app doing right now?". */}
+        <TasksPanel />
+
         {/* Hint at Cmd+K — visible affordance for the command palette.
             Sans font (not mono) so the ⌘ glyph renders cleanly at small
             sizes; mono fonts often mis-baseline it. */}
@@ -103,7 +108,7 @@ export function AppHeader() {
               href="/settings?tab=wikis"
               className="block border-b border-border/60 px-3 py-1.5 text-caption uppercase tracking-wider text-muted-foreground hover:bg-accent hover:text-foreground"
             >
-              Manage wikis →
+              管理知识库 →
             </Link>
             {[...PRIMARY_NAV, ...UTIL_NAV].map((item) => (
               <Link

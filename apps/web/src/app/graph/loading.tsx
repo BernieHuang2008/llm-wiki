@@ -8,7 +8,7 @@ export default function Loading() {
       <div className="space-y-3 text-center">
         <div className="mx-auto h-12 w-12 animate-pulse rounded-full border-2 border-border bg-muted/40" />
         <p className="text-caption uppercase tracking-[0.18em] text-muted-foreground">
-          Loading graph
+          正在加载图谱
         </p>
       </div>
     </div>

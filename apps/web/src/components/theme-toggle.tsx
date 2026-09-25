@@ -8,9 +8,9 @@ import { useTheme, type UiTheme } from "@/components/theme-provider";
 
 const ORDER: UiTheme[] = ["light", "dark", "auto"];
 const LABEL: Record<UiTheme, string> = {
-  light: "Switch to dark theme",
-  dark: "Switch to auto (follow system)",
-  auto: "Switch to light theme",
+  light: "切换到深色主题",
+  dark: "切换到跟随系统",
+  auto: "切换到浅色主题",
 };
 
 // Cycles light → dark → auto → light. Single click target so it stays out

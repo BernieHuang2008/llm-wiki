@@ -10,6 +10,16 @@ import { Textarea } from "@/components/ui/textarea";
 const PAGE_TYPES = ["entity", "concept", "source", "comparison", "overview"] as const;
 type PageType = (typeof PAGE_TYPES)[number];
 
+// Display labels for the stored page-type values. The values themselves stay
+// English because they are sent to the API; only the rendered label changes.
+const PAGE_TYPE_LABEL: Record<PageType, string> = {
+  entity: "实体",
+  concept: "概念",
+  source: "来源",
+  comparison: "对比",
+  overview: "概览",
+};
+
 type Props = {
   message: { content: string };
   chatTitle: string;
@@ -72,20 +82,20 @@ export function PromoteMessageDialog({ message, chatTitle, onClose }: Props) {
         className="w-full max-w-xl rounded-lg border border-border bg-card p-6 text-card-foreground shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-lg font-medium">Save assistant message as a wiki page</h2>
+        <h2 className="text-lg font-medium">把助手回复保存为 wiki 页面</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          The page content starts as the assistant&apos;s reply. Tweak it before saving.
+          页面内容初始为助手的这条回复，保存前可以再修改。
         </p>
 
         {created ? (
           <div className="mt-6 rounded-md bg-emerald-500/10 px-4 py-3 text-sm">
-            Saved.{" "}
+            已保存。{" "}
             <Link href={`/wiki/${created}`} className="text-primary underline underline-offset-2">
-              Open page →
+              打开页面 →
             </Link>
             <div className="mt-2 text-right">
               <Button variant="outline" onClick={onClose}>
-                Close
+                关闭
               </Button>
             </div>
           </div>
@@ -94,17 +104,17 @@ export function PromoteMessageDialog({ message, chatTitle, onClose }: Props) {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Slug
+                  标识（slug）
                 </label>
                 <Input
                   value={slug}
                   onChange={(e) => setSlug(e.target.value)}
-                  placeholder="kebab-case"
+                  placeholder="kebab-case（小写字母与短横线）"
                 />
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Type
+                  类型
                 </label>
                 <select
                   value={type}
@@ -113,7 +123,7 @@ export function PromoteMessageDialog({ message, chatTitle, onClose }: Props) {
                 >
                   {PAGE_TYPES.map((t) => (
                     <option key={t} value={t}>
-                      {t}
+                      {PAGE_TYPE_LABEL[t]}
                     </option>
                   ))}
                 </select>
@@ -121,13 +131,13 @@ export function PromoteMessageDialog({ message, chatTitle, onClose }: Props) {
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Title
+                标题
               </label>
               <Input value={title} onChange={(e) => setTitle(e.target.value)} />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Content (markdown)
+                内容（Markdown）
               </label>
               <Textarea
                 value={content}
@@ -142,10 +152,10 @@ export function PromoteMessageDialog({ message, chatTitle, onClose }: Props) {
             ) : null}
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="ghost" onClick={onClose} disabled={saving}>
-                Cancel
+                取消
               </Button>
               <Button onClick={onSave} disabled={saving || !slug.trim() || !title.trim()}>
-                {saving ? "Saving…" : "Create page"}
+                {saving ? "保存中…" : "创建页面"}
               </Button>
             </div>
           </div>

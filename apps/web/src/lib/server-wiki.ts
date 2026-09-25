@@ -10,6 +10,7 @@ import { redirect } from "next/navigation";
 
 import {
   backfillUsageCosts,
+  DEFAULT_WIKI_SETTINGS,
   getApiKey,
   globalConfigPath,
   initWikiFolder,
@@ -17,6 +18,7 @@ import {
   openDb,
   purgeOldTrash,
   syncWikiToDb,
+  wikiSettingsPath,
   type Db,
   type WikiSettings,
 } from "@llm-wiki/core";
@@ -68,6 +70,44 @@ export type WikiContext = {
 };
 
 /**
+ * Hook the background task executor installs at module load. `openWikiContext`
+ * calls it so the executor's worker lanes start on the first request that
+ * touches a wiki, without importing the executor (which would be a cycle).
+ */
+let onWikiContextOpened: (() => void) | null = null;
+
+export function registerWikiContextHook(hook: () => void): void {
+  onWikiContextOpened = hook;
+  try {
+    hook();
+  } catch {
+    // Starting the executor is best-effort; a request must never fail for it.
+  }
+}
+
+/**
+ * Cheap, synchronous context for the executor's polling loop: opens the DB and
+ * reads settings from disk without the per-call disk→DB sync (which each
+ * request already performs).
+ */
+export function openWikiContextSync(): WikiContext {
+  const wikiPath = resolveWikiPath();
+  const db = openDb(wikiPath);
+  let settings: WikiSettings;
+  try {
+    settings = JSON.parse(
+      readFileSync(wikiSettingsPath(wikiPath), "utf8"),
+    ) as WikiSettings;
+  } catch {
+    settings = {
+      ...DEFAULT_WIKI_SETTINGS,
+      defaultModels: { ...DEFAULT_WIKI_SETTINGS.defaultModels },
+    };
+  }
+  return { wikiPath, db, settings };
+}
+
+/**
  * Ensures the wiki folder is initialized, opens the DB, runs an idempotent
  * sync from disk, and returns the per-request context.
  *
@@ -85,6 +125,9 @@ export async function openWikiContext(): Promise<WikiContext> {
     throw err;
   }
   const settings = await loadWikiSettings(wikiPath);
+
+  // First request of the process starts the background task executor.
+  onWikiContextOpened?.();
 
   // Best-effort 30-day trash cleanup. Throttled, errors ignored.
   if (Date.now() - lastPurgeMs > PURGE_INTERVAL_MS) {

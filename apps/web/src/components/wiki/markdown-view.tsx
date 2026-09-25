@@ -54,7 +54,7 @@ export function MarkdownView({ content, knownSlugs, className }: MarkdownViewPro
                 <Link
                   href={`/wiki/${slug}`}
                   className={className}
-                  title={exists ? `→ ${slug}` : `Page "${slug}" doesn't exist yet`}
+                  title={exists ? `→ ${slug}` : `页面“${slug}”尚不存在`}
                 >
                   {children}
                 </Link>

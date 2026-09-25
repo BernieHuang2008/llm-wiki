@@ -105,13 +105,13 @@ export default async function PageHistoryPage({
     return (
       <PageContainer width="xl">
         <PageHeader
-          eyebrow="Edit history"
+          eyebrow="编辑历史"
           title={currentPage.frontmatter.title}
           description={
             <>
-              Every page edit (manual or LLM-driven) backs up the prior version
-              to <code className="font-mono text-[12px]">.llm-wiki/page-history/</code>.
-              This view lets you compare the current page to any prior backup.
+              每次页面编辑（手动或由 LLM 触发）都会将先前版本备份到{" "}
+              <code className="font-mono text-[12px]">.llm-wiki/page-history/</code>。
+              在此视图中，你可以将当前页面与任意一份历史备份进行比对。
             </>
           }
           actions={
@@ -119,17 +119,16 @@ export default async function PageHistoryPage({
               href={`/wiki/${params.slug}`}
               className="text-ui text-primary underline underline-offset-2 hover:text-primary/80"
             >
-              ← Back to page
+              ← 返回页面
             </Link>
           }
         />
 
         {backups.length === 0 ? (
           <div className="rounded-md border border-dashed border-border bg-card p-8 text-center">
-            <p className="font-display text-h3 font-semibold">No backups yet</p>
+            <p className="font-display text-h3 font-semibold">暂无备份</p>
             <p className="mx-auto mt-2 max-w-md text-ui text-muted-foreground">
-              The first edit to this page (via the in-app editor, a lint quick-fix,
-              or a re-ingest) will create a backup here.
+              对此页面的首次编辑（通过应用内编辑器、体检快速修复或重新摄取）将在此创建一份备份。
             </p>
           </div>
         ) : (

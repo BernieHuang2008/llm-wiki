@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { NextResponse } from "next/server";
 
-import { deleteSource, getSource, WIKI_PATHS } from "@llm-wiki/core";
+import { deleteSource, getSource, markStuckIngestTasksAsFailed, WIKI_PATHS } from "@llm-wiki/core";
 
 import { openWikiContext } from "@/lib/server-wiki";
 
@@ -50,6 +50,15 @@ export async function POST(
     } catch {
       // ENOENT or permission issue; proceed with DB cleanup anyway.
     }
+
+    // Close out any queued/running task for this source first: the executor
+    // tolerates a missing source, but the queue should not carry work the user
+    // just discarded. (A task already past its claim still fails safely.)
+    markStuckIngestTasksAsFailed(
+      ctx.db,
+      source.id,
+      "源文件已被删除，任务已取消。",
+    );
 
     deleteSource(ctx.db, source.id);
 

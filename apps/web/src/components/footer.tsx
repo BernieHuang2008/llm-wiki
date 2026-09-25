@@ -34,7 +34,7 @@ export async function Footer({ className = "" }: { className?: string }) {
     >
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-3 gap-y-1">
         <span>
-          LLM Wiki by{" "}
+          LLM Wiki，作者{" "}
           <Link
             href="https://github.com/ddsyasas"
             target="_blank"
@@ -52,7 +52,7 @@ export async function Footer({ className = "" }: { className?: string }) {
             <Link
               href="/settings?tab=wikis"
               className="max-w-[16rem] truncate hover:text-foreground"
-              title={`Active wiki — click to switch (${activeTopic})`}
+              title={`当前 wiki：点击切换（${activeTopic}）`}
             >
               <span aria-hidden className="text-muted-foreground/70">⌂</span>{" "}
               {activeTopic}
@@ -63,21 +63,21 @@ export async function Footer({ className = "" }: { className?: string }) {
         <Link
           href="/dashboard"
           className="hover:text-foreground"
-          title="Per-wiki page / source / chat counts + cumulative LLM spend across every wiki"
+          title="每个 wiki 的页面、来源、对话数量，以及所有 wiki 的累计 LLM 支出"
         >
-          Dashboard
+          仪表盘
         </Link>
         <span aria-hidden>·</span>
         <Link href="/about" className="hover:text-foreground">
-          About
+          关于
         </Link>
         <span aria-hidden>·</span>
         <Link href="/help" className="hover:text-foreground">
-          Help
+          帮助
         </Link>
         <span aria-hidden>·</span>
         <Link href="/developers" className="hover:text-foreground">
-          Developers
+          开发者
         </Link>
         <span aria-hidden>·</span>
         <Link
@@ -95,7 +95,7 @@ export async function Footer({ className = "" }: { className?: string }) {
           rel="noreferrer"
           className="hover:text-foreground"
         >
-          Pattern by Karpathy
+          模式源自 Karpathy
         </Link>
       </div>
     </footer>

@@ -9,29 +9,28 @@ export default function HelpPage() {
     <PageContainer width="lg">
       <header className="mb-12">
         <p className="text-caption uppercase tracking-wider text-muted-foreground">
-          Help
+          帮助
         </p>
         <h1 className="mt-2 font-display text-display font-semibold tracking-tight">
-          How to use LLM Wiki.
+          如何使用 LLM Wiki。
         </h1>
         <p className="mt-5 max-w-2xl text-body font-serif text-muted-foreground">
-          Everything you can do in the app, in the order you'd typically do it.
-          For the why-it-exists story see{" "}
+          这个应用中你能做的一切，按你通常的使用顺序排列。关于它为什么存在，见{" "}
           <Link href="/about" className="text-primary underline underline-offset-2">
-            About
+            关于
           </Link>
-          ; for how it's built see{" "}
+          ；关于它是如何构建的，见{" "}
           <Link href="/developers" className="text-primary underline underline-offset-2">
-            Developers
+            开发者
           </Link>
-          .
+          。
         </p>
       </header>
 
       {/* Table of contents — long page, helps scanning. */}
       <nav className="mb-12 rounded-md border border-border/70 bg-card p-4">
         <p className="mb-2 text-caption uppercase tracking-wider text-muted-foreground">
-          On this page
+          本页内容
         </p>
         <ul className="grid grid-cols-1 gap-x-6 gap-y-1 text-ui sm:grid-cols-2">
           {TOC.map((item) => (
@@ -47,105 +46,97 @@ export default function HelpPage() {
         </ul>
       </nav>
 
-      <Section id="overview" eyebrow="Mental model" title="The three layers">
+      <Section id="overview" eyebrow="心智模型" title="三个层次">
         <p>
-          Three layers live in the wiki folder you chose:
+          你选定的知识库文件夹中有三个层次：
         </p>
         <ul className="space-y-2">
           <Layer
             name="raw/"
-            what="Your sources, untouched. Whatever you pasted or uploaded, byte-for-byte. Never deleted by the app."
+            what="你的来源，原封不动。无论你粘贴或上传了什么，都逐字节保留。应用永不删除它们。"
           />
           <Layer
             name="wiki/"
-            what="The LLM-maintained pages. Cross-linked, short, structured. Lossy by design — they summarize raw/."
+            what="由 LLM 维护的页面。互相链接、简短、结构化。有意做成有损的 —— 它们是对 raw/ 的概括。"
           />
           <Layer
             name="CLAUDE.md"
-            what="The schema. A few paragraphs of plain English telling the LLM what this wiki is about and how to organize it. The LLM reads it on every operation."
+            what="schema。几段浅白的说明，告诉 LLM 这个知识库是关于什么的、该如何组织。LLM 在每次操作中都会读取它。"
           />
         </ul>
         <p className="mt-4">
-          And three operations the LLM performs against those layers:
+          LLM 针对这些层次执行三项操作：
         </p>
         <ul className="space-y-2">
           <Op
-            name="Ingest"
-            what="Read a new source → write/update wiki pages, refresh the index, log the change."
+            name="入库"
+            what="读取一份新来源 → 撰写/更新知识库页面、刷新索引、记录变更。"
           />
           <Op
-            name="Query"
-            what="Read your question + the wiki → produce a cited answer."
+            name="查询"
+            what="读取你的问题 + 知识库 → 生成带引用的回答。"
           />
           <Op
-            name="Lint"
-            what="Read the whole wiki → flag contradictions, broken links, orphans, missing pages, stale claims."
+            name="体检"
+            what="通读整个知识库 → 标出矛盾、失效链接、孤岛页面、缺失页面、过时论断。"
           />
         </ul>
       </Section>
 
-      <Section id="wikis" eyebrow="Multiple wikis" title="Holding more than one wiki">
+      <Section id="wikis" eyebrow="多个知识库" title="同时持有多个知识库">
         <p>
-          A wiki is meant to focus on one topic (the schema you set on first run
-          tells the LLM what scope it should stay inside). For separate topics —
-          say <em>Physics</em>, <em>Machine learning research</em>, and a{" "}
-          <em>Personal knowledge base</em> — you keep separate wiki folders and
-          switch between them.
+          一个知识库应聚焦于一个主题（首次运行时设置的 schema
+          会告诉 LLM 它应该待在什么范围内）。对于彼此独立的主题 ——
+          比如<em>物理学</em>、<em>机器学习研究</em>，以及一个
+          <em>个人知识库</em> —— 你保留各自的知识库文件夹并在它们之间切换。
         </p>
         <p>
-          Open{" "}
+          打开{" "}
           <Link
             href="/settings"
             className="text-primary underline underline-offset-2"
           >
-            Settings → Wikis
+            设置 → 知识库
           </Link>
-          . You'll see your currently-active wiki at the top and any others
-          you've created or visited. Two things you can do:
+          。你会看到当前启用的知识库排在顶部，以及你创建或访问过的其他知识库。你可以做两件事：
         </p>
         <ul className="space-y-1">
           <li>
-            <strong>Switch</strong> — click Switch on a row. The whole app
-            re-points to that wiki on the next request. No restart, no port
-            change. Your other wiki stays exactly where it is on disk.
+            <strong>切换</strong> —— 点击某一行的“切换”。整个应用会在下一次请求时重新指向
+            该知识库。无需重启，无需改端口。你的另一个知识库依然原封不动地待在磁盘上。
           </li>
           <li>
-            <strong>Create new wiki</strong> — give it a topic + folder path,
-            click Create + switch. The folder is created, schema initialized,
-            you land on the dashboard ready to add sources.
+            <strong>创建新知识库</strong> —— 填写主题 + 文件夹路径，点击“创建并切换”。
+            文件夹会被创建，schema 会初始化，你会落在仪表盘上，可以开始添加来源。
           </li>
         </ul>
         <p>
-          The active wiki is per-app-install (not per-browser-tab). If you want
-          to browse two wikis truly side-by-side, run two dev servers on
-          different ports — one terminal with <code>LLM_WIKI_PATH=~/wiki-a pnpm dev</code>{" "}
-          and another with <code>LLM_WIKI_PATH=~/wiki-b pnpm dev</code>.
+          启用中的知识库是按应用安装实例记录的（不是按浏览器标签页）。如果你想真正并排浏览两个
+          知识库，可在不同端口上运行两个开发服务器 —— 一个终端执行 <code>LLM_WIKI_PATH=~/wiki-a pnpm dev</code>，
+          另一个执行 <code>LLM_WIKI_PATH=~/wiki-b pnpm dev</code>。
         </p>
         <p>
-          Removing a wiki from the picker only edits the config — the folder +
-          files stay on disk. If you really want to delete a wiki, remove the
-          folder yourself (<code>rm -rf ~/wiki-foo</code>).
+          从选择器中移除一个知识库只会改动配置 —— 文件夹和文件仍留在磁盘上。如果你确实想删除一个
+          知识库，请自己删除文件夹（<code>rm -rf ~/wiki-foo</code>）。
         </p>
       </Section>
 
       <Section
         id="setup"
-        eyebrow="First-run"
-        title="Setting up: topic + API key"
+        eyebrow="首次运行"
+        title="开始设置：主题 + API 密钥"
       >
         <p>
-          When you open the app for the first time you'll see a setup card
-          asking for two things:
+          第一次打开应用时，你会看到一张设置卡片，要求填写两项内容：
         </p>
         <ol className="ml-5 list-decimal space-y-2">
           <li>
-            <strong>Wiki topic.</strong> One line describing what this wiki is
-            about (e.g. <em>"Quantum computing research and the algorithms
-            underlying it"</em>). The LLM reads this on every operation, so
-            specific is better than generic.
+            <strong>知识库主题。</strong>用一句话描述这个知识库是关于什么的
+            （例如<em>“量子计算研究及其背后的算法”</em>）。LLM
+            在每次操作中都会读取它，所以具体比泛泛更好。
           </li>
           <li>
-            <strong>OpenRouter API key.</strong> Get one at{" "}
+            <strong>OpenRouter API 密钥。</strong>在{" "}
             <a
               href="https://openrouter.ai/keys"
               target="_blank"
@@ -154,364 +145,342 @@ export default function HelpPage() {
             >
               openrouter.ai/keys
             </a>{" "}
-            — pay-as-you-go, one key gives access to Claude, GPT, Gemini,
-            Llama, more. Stored safely on your machine.
+            获取 —— 按量付费，一个密钥即可访问 Claude、GPT、Gemini、Llama
+            等更多模型。安全地存放在你的机器上。
             <br />
             <span className="text-xs text-muted-foreground">
-              Note: If you plan to use local Ollama for all models, you do not need an OpenRouter key! You can skip this key setup step during onboarding and configure Ollama in Settings.
+              注意：如果你打算对所有模型都使用本地 Ollama，则不需要 OpenRouter 密钥！你可以在引导流程中跳过这一步，稍后在设置中配置 Ollama。
             </span>
           </li>
         </ol>
         <p>
-          You can change either later in <Link href="/settings" className="text-primary underline underline-offset-2">Settings</Link>.
+          这两项之后都可以在 <Link href="/settings" className="text-primary underline underline-offset-2">设置</Link> 中修改。
         </p>
       </Section>
 
       <Section
         id="sources"
-        eyebrow="Adding to the wiki"
-        title="Sources — getting content in"
+        eyebrow="向知识库添加内容"
+        title="来源 —— 把内容送进去"
       >
         <p>
-          Go to{" "}
+          前往{" "}
           <Link href="/sources" className="text-primary underline underline-offset-2">
-            Sources
+            来源
           </Link>{" "}
-          and pick a mode at the top:
+          并在顶部选择一种模式：
         </p>
         <ul className="space-y-1">
           <li>
-            <strong>Paste</strong> — drop text or markdown in the textarea.
-            Fastest for "I just want to add this article."
+            <strong>粘贴</strong> —— 把文本或 markdown 放进文本域。
+            适合“我只想把这篇文章加进来”的情况，最快。
           </li>
           <li>
-            <strong>File</strong> — drag a file in or click to choose. Supported:{" "}
+            <strong>文件</strong> —— 拖入文件，或点击选择。支持：{" "}
             <code>.md / .txt / .html / .pdf / .docx / .pptx / .xlsx / .png /
-            .jpg / .webp</code>. PDFs and images go through a vision model;
-            everything else is text-extracted locally.
+            .jpg / .webp</code>。PDF 和图片会走视觉模型；
+            其余格式在本地做文本提取。
           </li>
           <li>
-            <strong>URL</strong> — fetches the page, runs Mozilla's Readability
-            to strip nav/ads/sidebars, ingests the clean article.
+            <strong>URL</strong> —— 抓取页面，用 Mozilla 的 Readability
+            去掉导航/广告/侧栏，入库干净的正文。
           </li>
         </ul>
         <p>
-          The page shows a <strong>cost preview</strong> before you ingest so
-          there are no surprises. Click <strong>Ingest</strong>; ~10–30s
-          later you'll see a summary of new pages, updated pages, and any
-          contradictions the LLM flagged.
+          入库前页面会显示<strong>成本预估</strong>，避免意外。
+          点击<strong>入库</strong>；约 10–30 秒后，你会看到新增页面、更新页面，
+          以及 LLM 标出的任何矛盾的摘要。
         </p>
         <p>
-          Above the form, <strong>Ingested sources</strong> lists everything
-          you've added with format, size, date, and how many wiki pages it
-          contributed to. Click any row to see the original + full lineage.
+          表单上方，<strong>已入库来源</strong>会列出你添加的一切，包含格式、大小、日期，
+          以及它为多少个知识库页面做出了贡献。点击任意一行即可查看原始内容 + 完整脉络。
         </p>
       </Section>
 
       <Section
         id="wiki"
-        eyebrow="Reading"
-        title="The wiki — browsing your pages"
+        eyebrow="阅读"
+        title="知识库 —— 浏览你的页面"
       >
         <p>
           <Link href="/wiki" className="text-primary underline underline-offset-2">
             /wiki
           </Link>{" "}
-          shows your pages as cards grouped by type (Overviews → Concepts →
-          Entities → Comparisons → Sources). Each card shows the title, a
-          short summary, tags, and when it was last touched.
+          以卡片形式按类型分组显示你的页面（总览 → 概念 →
+          实体 → 对比 → 来源）。每张卡片显示标题、简短摘要、标签，
+          以及最后修改时间。
         </p>
-        <p>Click any card and you'll see:</p>
+        <p>点击任意卡片，你会看到：</p>
         <ul className="space-y-1">
-          <li>The page body, rendered as readable prose.</li>
+          <li>页面正文，以易读的散文形式渲染。</li>
           <li>
-            <strong>Sources</strong> at the bottom — chips linking to the
-            raw inputs the LLM compiled this page from.
+            底部的<strong>来源</strong> —— 链接到 LLM 据以编译此页面的原始输入。
           </li>
           <li>
-            <strong>Backlinks</strong> — every other wiki page that mentions
-            this one. The graph view in list form.
+            <strong>反向链接</strong> —— 所有提到本页的其他知识库页面。也就是列表形式的图谱视图。
           </li>
           <li>
-            An <strong>Edit</strong> button in the header. Editing is a real
-            split-pane markdown editor; saves back up the prior version to{" "}
-            <code>.llm-wiki/page-history/</code>.
+            标题栏中的<strong>编辑</strong>按钮。编辑使用真正的分栏 markdown 编辑器；
+            保存时会把先前版本备份到{" "}
+            <code>.llm-wiki/page-history/</code>。
           </li>
         </ul>
         <p>
-          The sidebar has a filter input — type to narrow the page list. Or
-          press <kbd className="rounded border border-border bg-muted/50 px-1 font-sans text-[11px]">⌘K</kbd>{" "}
-          anywhere to fuzzy-find by title.
+          侧边栏有一个筛选输入框 —— 输入即可缩小页面列表范围。或者在任何地方按{" "}
+          <kbd className="rounded border border-border bg-muted/50 px-1 font-sans text-[11px]">⌘K</kbd>{" "}
+          按标题模糊查找。
         </p>
       </Section>
 
       <Section
         id="query"
-        eyebrow="Asking questions"
-        title="Query vs Chats — when to use which"
+        eyebrow="提问"
+        title="查询与对话 —— 何时用哪个"
       >
         <p>
-          Two ways to ask the wiki things:
+          向知识库提问有两种方式：
         </p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <SubCard title="Query — one-shot Q&A">
-            For "ask once and move on." Each question is independent; no
-            memory between them. Answer comes with cited pages and an
-            optional <strong>Save as wiki page</strong> button if it's
-            promotion-worthy.
+          <SubCard title="查询 —— 单次问答">
+            适合“问一次就走”。每个问题彼此独立，互不记忆。回答会附带引用的页面，
+            如果值得沉淀，还会有一个可选的<strong>保存为知识库页面</strong>按钮。
           </SubCard>
-          <SubCard title="Chats — multi-turn threads">
-            For ongoing investigations. Each chat is a real markdown file in{" "}
-            <code>chats/</code>. Pin, rename, move between folders. Every
-            assistant message has its own <strong>Save as wiki page</strong>
-            {" "}link; the whole chat has an <strong>Ingest → wiki</strong>{" "}
-            button in the header so the synthesis becomes permanent pages.
+          <SubCard title="对话 —— 多轮线程">
+            适合持续深入的调查。每个对话都是 <code>chats/</code> 下一个真正的 markdown
+            文件。可置顶、重命名、在文件夹间移动。每条助手消息都有自己的
+            <strong>保存为知识库页面</strong>
+            {" "}链接；整个对话在标题栏有一个<strong>入库 → 知识库</strong>{" "}
+            按钮，让综合结论变成持久的页面。
           </SubCard>
         </div>
       </Section>
 
       <Section
         id="lint"
-        eyebrow="Wiki health"
-        title="Lint — finding rot before it spreads"
+        eyebrow="知识库健康"
+        title="体检 —— 在腐化蔓延前发现它"
       >
         <p>
           <Link href="/lint" className="text-primary underline underline-offset-2">
             /lint
           </Link>{" "}
-          runs two passes: a fast local scan (broken{" "}
-          <code>[[wikilinks]]</code>, orphan pages) and an LLM pass for things
-          a local scan can't see (contradictions between pages, missing pages
-          that probably should exist, stale claims, gaps).
+          会跑两轮：一次快速的本地扫描（失效的{" "}
+          <code>[[wikilinks]]</code>、孤岛页面）和一次 LLM
+          检查，处理本地扫描看不到的问题（页面之间的矛盾、本该存在却缺失的页面、
+          过时论断、内容缺口）。
         </p>
-        <p>Per-issue fix buttons:</p>
+        <p>每个问题都有修复按钮：</p>
         <ul className="space-y-1">
           <li>
-            <strong>Remove broken link</strong> — strips the bad{" "}
-            <code>[[slug]]</code> from its host page. Local, free, instant.
+            <strong>移除失效链接</strong> —— 从宿主页面中剥除错误的{" "}
+            <code>[[slug]]</code>。本地执行，免费，即时。
           </li>
           <li>
-            <strong>Create page</strong> / <strong>Create stub</strong> —
-            drafts a small page for a missing slug using context from the
-            pages that reference it. LLM-powered, ~$0.01 per click.
+            <strong>创建页面</strong> / <strong>创建占位页</strong> ——
+            利用引用该 slug 的页面所提供的上下文，起草一个小页面。由 LLM
+            驱动，每次点击约 $0.01。
           </li>
           <li>
-            <strong>Apply suggested fix</strong> — sends the affected page +
-            the LLM's suggestion to the lint model, writes the rewritten
-            page back. Backed up to{" "}
-            <code>.llm-wiki/page-history/</code>.
+            <strong>应用建议的修复</strong> —— 把受影响的页面 +
+            LLM 的建议发给体检模型，把重写后的页面写回。会备份到{" "}
+            <code>.llm-wiki/page-history/</code>。
           </li>
         </ul>
-        <p>Bulk fixes at the top of the page:</p>
+        <p>页面顶部有批量修复：</p>
         <ul className="space-y-1">
           <li>
-            <strong>Rebuild index</strong> — rewrites <code>index.md</code>{" "}
-            from the page files on disk. Adds missing entries, removes
-            orphans. Free, local.
+            <strong>重建索引</strong> —— 根据磁盘上的页面文件重写 <code>index.md</code>。
+            补上缺失条目，移除孤岛。免费，本地执行。
           </li>
           <li>
-            <strong>Remove all broken links (N)</strong> — confirm-then-apply
-            for every local-detected broken link in one pass.
+            <strong>移除所有失效链接（N）</strong> —— 一次性确认并应用所有本地检测到的
+            失效链接修复。
           </li>
         </ul>
         <p>
-          The <strong>Recent runs</strong> panel shows the trend — each lint
-          run gets a one-line entry in <code>log.md</code>. After fixes, re-run
-          and watch the count drop (in green).
+          <strong>最近运行</strong>面板显示趋势 —— 每次体检都会在 <code>log.md</code>
+          中留下一行记录。修复之后重新运行，看计数下降（显示为绿色）。
         </p>
       </Section>
 
       <Section
         id="graph"
-        eyebrow="Seeing the shape"
-        title="Graph — your knowledge as a 3D network"
+        eyebrow="看见它的形态"
+        title="图谱 —— 你的知识作为一张 3D 网络"
       >
         <p>
           <Link href="/graph" className="text-primary underline underline-offset-2">
             /graph
           </Link>{" "}
-          renders your wiki as a 3D force-directed graph. Each page is a node;
-          each <code>[[wikilink]]</code> between two pages is an edge. The same
-          look-and-feel as Obsidian's graph view, but with one important
-          difference:
+          把你的知识库渲染成 3D 力导向图。每个页面是一个节点；
+          两个页面之间的每一条 <code>[[wikilink]]</code> 是一条边。观感与 Obsidian
+          的图谱视图一致，但有一个重要区别：
         </p>
         <p>
-          <strong>Nodes are colored by page type</strong>, not by tag or folder.
-          The LLM assigns a type to every page during ingest, so the graph gives
-          you an at-a-glance read of what kind of knowledge your wiki holds:
+          <strong>节点按页面类型着色</strong>，而不是按标签或文件夹。LLM
+          会在入库时为每个页面指定类型，因此图表让你一眼看出知识库中知识的构成：
         </p>
         <ul className="space-y-1">
           <li>
-            <span className="font-medium" style={{ color: "#dc2626" }}>Red</span>
-            {" "}— Overviews (high-level synthesis pages)
+            <span className="font-medium" style={{ color: "#dc2626" }}>红色</span>
+            {" "}—— 总览（高层次的综合页面）
           </li>
           <li>
-            <span className="font-medium" style={{ color: "#0891b2" }}>Cyan</span>
-            {" "}— Concepts (ideas, techniques, frameworks)
+            <span className="font-medium" style={{ color: "#0891b2" }}>青色</span>
+            {" "}—— 概念（想法、技术、框架）
           </li>
           <li>
-            <span className="font-medium" style={{ color: "#d97706" }}>Amber</span>
-            {" "}— Entities (people, organizations, places)
+            <span className="font-medium" style={{ color: "#d97706" }}>琥珀色</span>
+            {" "}—— 实体（人物、组织、地点）
           </li>
           <li>
-            <span className="font-medium" style={{ color: "#7c3aed" }}>Violet</span>
-            {" "}— Comparisons (two-or-more-things contrasted)
+            <span className="font-medium" style={{ color: "#7c3aed" }}>紫色</span>
+            {" "}—— 对比（两个或多个事物的对照）
           </li>
           <li>
-            <span className="font-medium" style={{ color: "#64748b" }}>Slate</span>
-            {" "}— Source-type pages
+            <span className="font-medium" style={{ color: "#64748b" }}>石板灰</span>
+            {" "}—— 来源型页面
           </li>
         </ul>
         <p>
-          <strong>Node size</strong> scales with link count (degree). Heavily-
-          connected pages grow larger — they're your wiki's central concepts.
-          <strong> Particles flowing along edges</strong> show direction.
+          <strong>节点大小</strong>随链接数（度）变化。连接密集的页面会变大 ——
+          它们是知识库的核心概念。
+          <strong>沿边流动的粒子</strong>表示方向。
         </p>
         <p>
-          <strong>Click a node</strong> to focus it: the camera flies to it,
-          neighbors stay full-color, non-neighbors fade out. The side panel
-          shows the page's preview, tags, and a clickable list of every
-          connected page — letting you walk the graph by associations instead
-          of by name. URL updates to <code>/graph?node=&lt;slug&gt;</code> so
-          you can bookmark or share a focused view.
+          <strong>点击一个节点</strong>即可聚焦它：相机会飞向它，相邻节点保持完整颜色，
+          非相邻节点淡出。侧面板显示该页面的预览、标签，以及所有相连页面的可点击列表 ——
+          让你顺着关联而不是按名称在图中穿行。URL 会更新为 <code>/graph?node=&lt;slug&gt;</code>，
+          以便你收藏或分享聚焦后的视图。
         </p>
         <p>
-          As you ingest more sources you'll watch the graph grow: new nodes
-          spring into place, and edges form from any existing pages that
-          mention the new one.
+          随着你入库更多来源，你会看到图谱生长：新节点弹入位置，
+          任何提到新页面的既有页面都会与之形成边。
         </p>
       </Section>
 
       <Section
         id="schema"
-        eyebrow="Telling the LLM what you want"
-        title="Schema — editing CLAUDE.md"
+        eyebrow="告诉 LLM 你想要什么"
+        title="Schema —— 编辑 CLAUDE.md"
       >
         <p>
           <Link href="/schema" className="text-primary underline underline-offset-2">
             /schema
           </Link>{" "}
-          is a split-pane editor for the schema file the LLM reads on every
-          operation. Default contents are generic; replace with your specifics
-          to make the agent's output dramatically better.
+          是一个分栏编辑器，用于编辑 LLM 每次操作都会读取的 schema 文件。
+          默认内容是通用的；替换成你的具体说明，能让智能体的输出显著变好。
         </p>
-        <p>What works well in a schema:</p>
+        <p>一份好的 schema 里应该写：</p>
         <ul className="space-y-1">
-          <li>What this wiki is about, in 1–3 sentences.</li>
+          <li>这个知识库是关于什么的，用 1–3 句话说明。</li>
           <li>
-            What kinds of pages you want (and don't want) — e.g. <em>"entities
-            for researchers but not for institutions"</em>.
+            你想要（以及不想要）哪些类型的页面 —— 例如<em>“为研究者建实体页，但不为机构建”</em>。
           </li>
-          <li>Naming conventions for slugs you care about.</li>
+          <li>你在意的 slug 命名约定。</li>
           <li>
-            Subject-matter pet peeves the LLM should respect (e.g.{" "}
-            <em>"don't conflate quantum advantage with quantum supremacy"</em>).
+            LLM 应尊重的领域忌讳（例如<em>“不要把量子优势与量子霸权混为一谈”</em>）。
           </li>
         </ul>
         <p>
-          Saves back up the prior version to{" "}
-          <code>.llm-wiki/schema-history/</code> (last 10 kept).
+          保存时会把先前版本备份到{" "}
+          <code>.llm-wiki/schema-history/</code>（保留最近 10 个）。
         </p>
       </Section>
 
       <Section
         id="settings"
-        eyebrow="Tuning the loop"
-        title="Settings — models, costs, key"
+        eyebrow="调校这个闭环"
+        title="设置 —— 模型、花费、密钥"
       >
         <ul className="space-y-1">
           <li>
-            <strong>General</strong> — wiki topic, theme (light / dark / auto).
+            <strong>通用</strong> —— 知识库主题、主题外观（浅色 / 深色 / 跟随系统）。
           </li>
           <li>
-            <strong>Models</strong> — pick a provider (OpenRouter or local Ollama) and a model for each operation (ingest, query, chat, lint, vision). You can mix and match cloud models and local inference. Dropdowns of curated choices plus a custom-slug field for anything else. If you pick Ollama anywhere, see the{" "}
+            <strong>模型</strong> —— 为每项操作（入库、查询、对话、体检、视觉）选择提供商（OpenRouter 或本地 Ollama）和模型。你可以混用云端模型与本地推理。下拉框提供精选选项，另有自定义 slug 输入框以支持其他模型。如果你在任何位置选择了 Ollama，请参阅{" "}
             <Link href="/local-models" className="text-primary underline underline-offset-2">
-              local models setup guide
+              本地模型设置指南
             </Link>{" "}
-            for installation + hardware requirements per model — Ollama needs to be running locally before those slots will work.
+            了解安装步骤与各模型的硬件要求 —— 这些槽位生效前，Ollama 需要先在本地运行。
           </li>
           <li>
-            <strong>API</strong> — OpenRouter key. Test before saving; mask
-            after. (Not needed if you only use local Ollama!).
+            <strong>API</strong> —— OpenRouter 密钥。保存前先测试；保存后掩码显示。（如果你只用本地 Ollama，则不需要！）。
           </li>
           <li>
-            <strong>Costs</strong> — running tally of input/output tokens per
-            model + estimated $ spend.
+            <strong>花费</strong> —— 按模型统计的输入/输出 token 滚动总和 + 估算的美元支出。
           </li>
           <li>
-            <strong>About</strong> — version, license, links.
+            <strong>关于</strong> —— 版本、许可证、链接。
           </li>
         </ul>
         <p>
-          Rule of thumb: cheap-fast model for ingest (you'll run it a lot),
-          smarter model for query / lint / chat (user-facing answers).
+          经验法则：入库用便宜快速的模型（你会频繁运行它），
+          查询 / 体检 / 对话用更聪明的模型（面向用户的回答）。
         </p>
       </Section>
 
       <Section
         id="local-models"
-        eyebrow="Want to run models locally?"
-        title="Local models (Ollama) — separate setup guide"
+        eyebrow="想在本地运行模型？"
+        title="本地模型（Ollama）—— 单独的设置指南"
       >
         <p>
-          Ollama lets you run LLMs on your own machine for free (after the
-          one-time model download), keeping all your data local. LLM Wiki
-          supports it as a per-slot provider in Settings → Models.
+          Ollama 让你在自己的机器上免费运行 LLM（模型一次性下载之后），
+          所有数据都留在本地。LLM Wiki 在 设置 → 模型
+          中将它支持为按槽位可选的提供商。
         </p>
         <p>
-          Because Ollama itself needs to be installed + running before LLM Wiki
-          can talk to it, plus picking the right model depends heavily on what
-          hardware you have, the full setup lives on its own page:
+          由于 Ollama 本身需要先安装并运行，LLM Wiki 才能与它通信，
+          而且选择合适的模型很大程度上取决于你手上的硬件，完整设置说明放在单独页面：
         </p>
         <p>
           <Link
             href="/local-models"
             className="text-primary underline underline-offset-2"
           >
-            → Open the Ollama setup guide
+            → 打开 Ollama 设置指南
           </Link>
         </p>
         <p>
-          Covers: install steps for macOS / Linux / Windows, pulling models, a
-          hardware-requirements table showing RAM / disk / speed per model on
-          common machines, a quick picker for which model to start with based on
-          your specs, and troubleshooting common errors.
+          涵盖：macOS / Linux / Windows 的安装步骤、拉取模型、一张展示常见机器上各模型
+          RAM / 磁盘 / 速度的硬件要求表、根据你的配置选择入门模型的快速选择器，
+          以及常见错误的排查。
         </p>
       </Section>
 
       <Section
         id="dashboard"
-        eyebrow="Across all wikis"
-        title="The health dashboard"
+        eyebrow="跨所有知识库"
+        title="健康仪表盘"
       >
         <p>
-          The per-wiki home page (<Link href="/" className="text-primary underline underline-offset-2">/</Link>)
-          shows numbers for whatever wiki is currently active. The dashboard at{" "}
+          每个知识库的主页（<Link href="/" className="text-primary underline underline-offset-2">/</Link>）
+          显示当前启用知识库的各项数字。位于{" "}
           <Link href="/dashboard" className="text-primary underline underline-offset-2">/dashboard</Link>{" "}
-          shows the same numbers for every wiki you've ever opened, side by side
-          — pages, sources, chats, LLM spend, last touched. Sorted by recency so
-          the wikis you actually use bubble to the top.
+          的仪表盘则并排显示你打开过的每个知识库的相同数字
+          —— 页面、来源、对话、LLM 花费、最后修改时间。按新旧排序，
+          让你真正在用的知识库浮到顶部。
         </p>
         <p>
-          A rollup row across the top adds them all up — the cumulative spend
-          answers the "how much have I actually spent on this app" question that
-          per-wiki cost numbers can't.
+          顶部一行汇总把它们加总 —— 累计花费回答了“我到底在这个应用上花了多少钱”，
+          而按知识库统计的花费数字回答不了这个问题。
         </p>
         <p>
-          Three ways to get there: <strong>footer link</strong> (every screen),{" "}
-          <strong>LLM spend</strong> tile on the home page, <strong>⌘K → Dashboard</strong>.
-          Each card has a <em>Switch →</em> button to jump into that wiki.
+          三种到达方式：<strong>页脚链接</strong>（每个界面都有）、{" "}
+          主页上的 <strong>LLM 花费</strong> 磁贴、<strong>⌘K → 仪表盘</strong>。
+          每张卡片都有一个<em>切换 →</em>按钮，可直接跳进该知识库。
         </p>
       </Section>
 
       <Section
         id="disk"
-        eyebrow="The folder"
-        title="Where everything lives on disk"
+        eyebrow="文件夹"
+        title="一切在磁盘上的位置"
       >
         <p>
-          Your wiki folder (default <code>~/llm-wiki-default</code>, override
-          with <code>LLM_WIKI_PATH</code>):
+          你的知识库文件夹（默认 <code>~/llm-wiki-default</code>，可用{" "}
+          <code>LLM_WIKI_PATH</code> 覆盖）：
         </p>
         <pre className="overflow-x-auto rounded-md border border-border/70 bg-card p-4 text-[12px] leading-relaxed">
 {`~/llm-wiki-default/
@@ -524,23 +493,22 @@ export default function HelpPage() {
 └── .llm-wiki/             # SQLite + page-history + schema-history`}
         </pre>
         <p>
-          You can browse <code>log.md</code> through the app at{" "}
+          你可以在应用内通过{" "}
           <Link href="/log" className="text-primary underline underline-offset-2">
             /log
           </Link>
-          . Everything else is plain markdown — open it in Obsidian, VS Code,
-          vim, or sync with iCloud / git. If you uninstall the app, the
-          folder remains valid and useful.
+          浏览 <code>log.md</code>。其他一切都是纯 markdown —— 用 Obsidian、VS Code、vim
+          打开它，或用 iCloud / git 同步。即使你卸载应用，这个文件夹依然有效且有用。
         </p>
       </Section>
 
       <Section
         id="updating"
-        eyebrow="Staying current"
-        title="Updating to a new version"
+        eyebrow="保持最新"
+        title="更新到新版本"
       >
         <p>
-          The app is published to npm as{" "}
+          应用以{" "}
           <a
             href="https://www.npmjs.com/package/@syasas/llm-wiki"
             target="_blank"
@@ -549,7 +517,7 @@ export default function HelpPage() {
           >
             @syasas/llm-wiki
           </a>
-          . New versions ship as patch / minor releases; check{" "}
+          发布到 npm。新版本以补丁 / 次要版本形式发布；更新日志见{" "}
           <a
             href="https://github.com/ddsyasas/llm-wiki/releases"
             target="_blank"
@@ -557,13 +525,13 @@ export default function HelpPage() {
             className="text-primary underline underline-offset-2"
           >
             GitHub Releases
-          </a>{" "}
-          for the changelog.
+          </a>
+          。
         </p>
         <p>
-          <strong>If you installed via <code>npm install -g</code></strong>,
-          stop the running server first (<kbd>Ctrl</kbd>+<kbd>C</kbd>),
-          then in any terminal:
+          <strong>如果你是使用 <code>npm install -g</code> 安装的</strong>，
+          先停止正在运行的服务器（<kbd>Ctrl</kbd>+<kbd>C</kbd>），
+          然后在任意终端中执行：
         </p>
         <pre className="overflow-x-auto rounded-md border border-border/70 bg-card p-3 text-[12px]">
 {`npm install -g @syasas/llm-wiki@latest
@@ -571,62 +539,62 @@ llm-wiki version     # confirm the new version
 llm-wiki start       # back up and running`}
         </pre>
         <p>
-          <strong>If you installed from source</strong> (git clone): from
-          the repo root, <code>git pull && pnpm install</code>, then
-          restart <code>pnpm dev</code>.
+          <strong>如果你是从源码安装的</strong>（git clone）：在仓库根目录执行{" "}
+          <code>git pull && pnpm install</code>，然后
+          重启 <code>pnpm dev</code>。
         </p>
         <p>
-          <strong>Your wiki data is safe across upgrades.</strong> The
-          on-disk format is stable within v1.x — folder, schema, pages,
-          chats, history, and your OpenRouter key all carry over intact.
-          When schema migrations ship in future versions, they run
-          automatically on the next server start; no manual step.
+          <strong>你的知识库数据在升级过程中是安全的。</strong>
+          v1.x 内的磁盘格式是稳定的 —— 文件夹、schema、页面、
+          对话、历史记录以及你的 OpenRouter 密钥都会完整保留。
+          未来版本发布 schema 迁移时，会在下次服务器启动时
+          自动运行；无需手动操作。
         </p>
         <p>
-          If <code>llm-wiki version</code> still prints the old number
-          after upgrading, open a new terminal window — sometimes
-          (especially on Windows) the shell needs to re-resolve PATH
-          after <code>npm install -g</code> replaces the binary.
+          如果升级后 <code>llm-wiki version</code> 仍打印旧版本号，
+          请打开一个新的终端窗口 —— 有时
+          （尤其在 Windows 上）在 <code>npm install -g</code> 替换二进制文件后，
+          shell 需要重新解析 PATH。
         </p>
       </Section>
 
       <Section
         id="troubleshooting"
-        eyebrow="When things go sideways"
-        title="Troubleshooting"
+        eyebrow="出问题的时候"
+        title="疑难排查"
       >
         <ul className="space-y-3">
           <Trouble
-            symptom="“OpenRouter API key not configured” (when not using Ollama)"
-            fix="Open Settings → API and paste a key from openrouter.ai/keys. If you wanted to use local Ollama, make sure that Settings → Models has the provider for the active module set to Ollama."
+            symptom="“OpenRouter API key not configured”（未使用 Ollama 时）"
+            fix="打开 设置 → API，粘贴来自 openrouter.ai/keys 的密钥。如果你想用本地 Ollama，请确认 设置 → 模型 中当前模块的提供商已设为 Ollama。"
           />
           <Trouble
-            symptom="“server error from Ollama / LocalTunnel (502)” or connection hanging"
-            fix="Your local Ollama instance on port 11434 is down or your LocalTunnel endpoint has disconnected/timed out. Make sure `ollama serve` is active and running on your local machine, and your `.env` has the correct `OLLAMA_BASE_URL`."
+            symptom="“server error from Ollama / LocalTunnel (502)”或连接挂起"
+            fix="你本地 11434 端口上的 Ollama 实例已停止，或你的 LocalTunnel 端点已断开/超时。确认 `ollama serve` 正在你的本机运行，并且 `.env` 中的 `OLLAMA_BASE_URL` 正确。"
           />
           <Trouble
             symptom="“model not available on OpenRouter: anthropic/claude-3-5-sonnet”"
-            fix="Providers retire models periodically. Settings → Models → switch the affected slot to a current model from the dropdown."
+            fix="提供商会定期下线模型。进入 设置 → 模型 → 把受影响的槽位切换到下拉框中的当前模型。"
           />
           <Trouble
             symptom='"LLM response failed schema validation"'
-            fix="The model returned malformed JSON. Click Ingest again — small models occasionally drift. If it keeps happening, switch the ingest slot to a smarter model (Sonnet, GPT-4o)."
+            fix="模型返回了格式错误的 JSON。再次点击入库 —— 小模型偶尔会跑偏。如果反复发生，把入库槽位换成更聪明的模型（Sonnet、GPT-4o）。"
           />
           <Trouble
-            symptom="Lint keeps flagging the same fixed issue"
-            fix="The page got edited but the index summary went stale. Click Rebuild index in the Lint page's Bulk fixes."
+            symptom="体检反复标出同一个已修复的问题"
+            fix="页面已编辑，但索引摘要已过时。在体检页面的批量修复中点击重建索引。"
           />
           <Trouble
-            symptom="Dev server feels slow / clicks not registering"
-            fix="Dev-mode Next.js compiles routes lazily. First click to a route is slow; subsequent are fast. Loading skeletons should appear instantly — if they don't, refresh the browser."
+            symptom="开发服务器感觉很慢 / 点击没反应"
+            fix="开发模式下的 Next.js 会惰性编译路由。首次点击某个路由较慢，之后很快。加载骨架应立即出现 —— 如果没有，请刷新浏览器。"
           />
           <Trouble
-            symptom={<><code>llm-wiki: command not found</code> after <code>npm install -g</code></>}
-            fix={<>npm put the binary somewhere that isn't on your PATH. Run <code>npm prefix -g</code> to find where, then <code>{`echo 'export PATH="$(npm prefix -g)/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc`}</code>. Common on WSL Ubuntu with a non-standard npm prefix.</>}
+            symptom={<><code>npm install -g</code> 之后出现 <code>llm-wiki: command not found</code></>}
+            fix={<>npm 把二进制文件放到了不在你 PATH 中的位置。运行 <code>npm prefix -g</code> 找出位置，然后执行 <code>{`echo 'export PATH="$(npm prefix -g)/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc`}</code>。在 npm prefix 非标准的 WSL Ubuntu 上很常见。</>}
           />
           <Trouble
-            symptom="Standalone server crashes immediately after install with a native module error"
-            fix={<>Some Linux distros need build tools to compile <code>better-sqlite3</code> / <code>keytar</code> if no prebuilt binary matches. On Debian/Ubuntu: <code>sudo apt install build-essential python3 libsecret-1-dev</code>, then reinstall.</>}
+            symptom="独立服务器安装后因原生模块错误立即崩溃"
+            fix={<>如果没有匹配的预编译二进制文件，某些 Linux 发行版需要构建工具来编译 <code>better-sqlite3</code> / <code>keytar</code>。在 Debian/Ubuntu 上执行：<code>sudo apt install build-essential python3 libsecret-1-dev</code>，然后重新安装。</>}
           />
         </ul>
       </Section>
@@ -636,13 +604,13 @@ llm-wiki start       # back up and running`}
           href="/about"
           className="rounded-md border border-border bg-card px-4 py-2 text-ui hover:border-primary/40 hover:bg-accent/40"
         >
-          ← Back to About
+          ← 返回关于
         </Link>
         <Link
           href="/developers"
           className="rounded-md border border-border bg-card px-4 py-2 text-ui hover:border-primary/40 hover:bg-accent/40"
         >
-          Building or extending it? Developers page →
+          想构建或扩展它？看开发者页面 →
         </Link>
       </div>
     </PageContainer>
@@ -728,19 +696,19 @@ function Trouble({
 }
 
 const TOC: Array<{ id: string; label: string }> = [
-  { id: "overview", label: "Mental model — three layers, three operations" },
-  { id: "wikis", label: "Multiple wikis — switching + creating" },
-  { id: "setup", label: "First-run: topic + API key" },
-  { id: "sources", label: "Sources — getting content in" },
-  { id: "wiki", label: "The wiki — browsing your pages" },
-  { id: "query", label: "Query vs Chats" },
-  { id: "lint", label: "Lint — wiki health" },
-  { id: "graph", label: "Graph — 3D network view" },
-  { id: "dashboard", label: "Dashboard — stats across every wiki" },
-  { id: "schema", label: "Schema — editing CLAUDE.md" },
-  { id: "settings", label: "Settings — models, costs, key" },
-  { id: "local-models", label: "Local models (Ollama) — separate setup guide" },
-  { id: "disk", label: "Where everything lives on disk" },
-  { id: "updating", label: "Updating to a new version" },
-  { id: "troubleshooting", label: "Troubleshooting" },
+  { id: "overview", label: "心智模型 —— 三个层次、三项操作" },
+  { id: "wikis", label: "多个知识库 —— 切换与创建" },
+  { id: "setup", label: "首次运行：主题 + API 密钥" },
+  { id: "sources", label: "来源 —— 把内容送进去" },
+  { id: "wiki", label: "知识库 —— 浏览你的页面" },
+  { id: "query", label: "查询与对话" },
+  { id: "lint", label: "体检 —— 知识库健康" },
+  { id: "graph", label: "图谱 —— 3D 网络视图" },
+  { id: "dashboard", label: "仪表盘 —— 跨所有知识库的统计" },
+  { id: "schema", label: "Schema —— 编辑 CLAUDE.md" },
+  { id: "settings", label: "设置 —— 模型、花费、密钥" },
+  { id: "local-models", label: "本地模型（Ollama）—— 单独的设置指南" },
+  { id: "disk", label: "一切在磁盘上的位置" },
+  { id: "updating", label: "更新到新版本" },
+  { id: "troubleshooting", label: "疑难排查" },
 ];

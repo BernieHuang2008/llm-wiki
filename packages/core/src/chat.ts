@@ -329,6 +329,12 @@ export type SendChatMessageOptions = {
   client: LlmClient;
   /** Override the chat's saved model for this turn only. */
   modelOverride?: string;
+  /**
+   * Background-task path: a preceding HTTP request already appended the user
+   * turn (so the UI could show it immediately) and the executor only needs the
+   * assistant reply. Without this the message would be written twice.
+   */
+  skipUserAppend?: boolean;
 };
 
 export type SendChatMessageResult = {
@@ -346,8 +352,10 @@ export async function sendChatMessage(
   const model = opts.modelOverride ?? (await readChatModel(opts.wikiPath, before));
 
   // 1. Persist the user's turn first so a mid-call failure doesn't lose their
-  // input.
-  const userAppend = await appendMessage(opts.wikiPath, opts.db, opts.chatId, "user", opts.userMessage);
+  // input. Skipped when the route already recorded it.
+  const userAppend = opts.skipUserAppend
+    ? null
+    : await appendMessage(opts.wikiPath, opts.db, opts.chatId, "user", opts.userMessage);
 
   // 2. Build context. Re-read the chat to get the full message history.
   const chat = await readChat(opts.wikiPath, opts.chatId, opts.db);
@@ -388,12 +396,36 @@ export async function sendChatMessage(
     result.text,
   );
 
+  const userMessage = userAppend
+    ? userAppend.message
+    : (chat.messages.filter((m) => m.role === "user").at(-1) ?? {
+        role: "user" as const,
+        time: new Date().toISOString(),
+        content: opts.userMessage,
+      });
+
   return {
     row: assistantAppend.row,
-    user: userAppend.message,
+    user: userMessage,
     assistant: assistantAppend.message,
     modelUsed: result.model,
   };
+}
+
+/**
+ * Writes just the user half of a turn. The background-task route calls this
+ * before enqueueing so the message appears in the thread instantly; the
+ * executor later appends the reply with `skipUserAppend`.
+ */
+export async function appendUserTurn(
+  wikiPath: string,
+  db: Db,
+  chatId: string,
+  message: string,
+): Promise<ChatMessage> {
+  if (!getChat(db, chatId)) throw chatNotFound(chatId);
+  const appended = await appendMessage(wikiPath, db, chatId, "user", message);
+  return appended.message;
 }
 
 async function readChatModel(wikiPath: string, row: ChatRow): Promise<string> {

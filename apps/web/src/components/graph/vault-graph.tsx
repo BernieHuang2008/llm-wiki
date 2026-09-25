@@ -15,7 +15,7 @@ const ForceGraph3D = dynamic(
     ssr: false,
     loading: () => (
       <div className="fixed inset-0 grid place-items-center bg-background text-caption uppercase tracking-[0.18em] text-muted-foreground">
-        Initializing 3D scene…
+        正在初始化 3D 场景…
       </div>
     ),
   },
@@ -39,11 +39,11 @@ const TYPE_COLOR: Record<string, string> = {
 const TYPE_COLOR_DEFAULT = "#94a3b8";
 
 const TYPE_LABEL: Record<string, string> = {
-  overview: "Overview",
-  concept: "Concept",
-  entity: "Entity",
-  comparison: "Comparison",
-  source: "Source",
+  overview: "概览",
+  concept: "概念",
+  entity: "实体",
+  comparison: "对比",
+  source: "来源",
 };
 
 function colorForType(group?: string): string {
@@ -192,7 +192,7 @@ export function VaultGraph({ data, initialSelectedId }: Props) {
             node.title,
           )}<div style="opacity:.65;font-size:10px;margin-top:2px;">${escapeHtml(
             TYPE_LABEL[node.group] ?? node.group,
-          )} · ${node.degree} link${node.degree === 1 ? "" : "s"}</div></div>`;
+          )} · ${node.degree} 条链接</div></div>`;
         }}
         nodeRelSize={5}
         nodeVal={(n: object) => 1 + Math.sqrt((n as GraphNode).degree ?? 0) * 2}
@@ -231,14 +231,14 @@ export function VaultGraph({ data, initialSelectedId }: Props) {
           scene without competing for attention. */}
       <div className="pointer-events-none absolute left-5 top-5 z-10 max-w-xs rounded-lg border border-border/60 bg-card/75 p-4 shadow-sm backdrop-blur-md">
         <p className="text-caption font-semibold uppercase tracking-wider text-primary">
-          Knowledge graph
+          知识图谱
         </p>
         <p className="mt-1 text-ui text-foreground">
-          {data.nodes.length} page{data.nodes.length === 1 ? "" : "s"} ·{" "}
-          {data.links.length} link{data.links.length === 1 ? "" : "s"}
+          {data.nodes.length} 个页面 ·{" "}
+          {data.links.length} 条链接
         </p>
         <p className="mt-1 text-caption text-muted-foreground">
-          Drag to orbit · scroll to zoom · click a node
+          拖动旋转 · 滚动缩放 · 点击节点
         </p>
         <div className="mt-3 flex flex-wrap gap-1.5">
           {(["overview", "concept", "entity", "comparison", "source"] as const)
@@ -253,7 +253,7 @@ export function VaultGraph({ data, initialSelectedId }: Props) {
                   className="inline-block h-2 w-2 rounded-full"
                   style={{ backgroundColor: colorForType(t) }}
                 />
-                {t}
+                {TYPE_LABEL[t] ?? t}
               </span>
             ))}
         </div>
@@ -276,7 +276,7 @@ export function VaultGraph({ data, initialSelectedId }: Props) {
               type="button"
               onClick={() => setSelectedId(undefined)}
               className="rounded p-1 text-muted-foreground hover:bg-accent/60 hover:text-foreground"
-              aria-label="Close"
+              aria-label="关闭"
             >
               <span className="text-lg leading-none">×</span>
             </button>
@@ -285,7 +285,7 @@ export function VaultGraph({ data, initialSelectedId }: Props) {
             {selected.title}
           </h2>
           <p className="mt-1 text-caption text-muted-foreground">
-            {selected.degree} link{selected.degree === 1 ? "" : "s"}
+            {selected.degree} 条链接
             {selected.tags.length > 0 ? ` · ${selected.tags.join(", ")}` : null}
           </p>
           {selected.preview ? (
@@ -296,7 +296,7 @@ export function VaultGraph({ data, initialSelectedId }: Props) {
           {linkedNodes.length > 0 ? (
             <div className="mt-4">
               <p className="text-caption uppercase tracking-wider text-muted-foreground">
-                Connected ({linkedNodes.length})
+                已连接（{linkedNodes.length}）
               </p>
               <ul className="mt-1 divide-y divide-border/50">
                 {linkedNodes.map((n) => (
@@ -327,7 +327,7 @@ export function VaultGraph({ data, initialSelectedId }: Props) {
             href={`/wiki/${selected.id}`}
             className="mt-4 block rounded-md border border-primary/40 bg-primary/[0.06] px-3 py-2 text-center text-ui text-primary hover:bg-primary/10"
           >
-            Open page →
+            打开页面 →
           </Link>
         </div>
       ) : null}

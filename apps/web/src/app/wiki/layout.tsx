@@ -12,7 +12,7 @@ import { requireSetup } from "@/lib/server-wiki";
 export default async function WikiLayout({ children }: { children: React.ReactNode }) {
   await requireSetup();
   return (
-    <SidebarLayoutWrapper sidebar={<WikiSidebar />} triggerLabel="Open wiki pages">
+    <SidebarLayoutWrapper sidebar={<WikiSidebar />} triggerLabel="打开 Wiki 页面">
       {children}
     </SidebarLayoutWrapper>
   );

@@ -31,24 +31,23 @@ export default async function GraphPage({
     return (
       <PageContainer width="lg">
         <PageHeader
-          eyebrow="Knowledge graph"
-          title="Graph"
-          description="A 3D view of your wiki — pages as nodes, [[wikilinks]] as edges. Drag to orbit, scroll to zoom, click a node to focus."
+          eyebrow="知识图谱"
+          title="图谱"
+          description="你的知识库的 3D 视图——页面为节点，[[wikilinks]] 为边。拖动可旋转，滚动可缩放，点击节点可聚焦。"
         />
         <div className="rounded-lg border border-dashed border-border bg-card p-10 text-center">
           <p className="font-display text-h3 font-semibold">
-            Nothing to graph yet
+            暂无可绘制的节点
           </p>
           <p className="mx-auto mt-2 max-w-md text-ui text-muted-foreground">
-            Add a source on the{" "}
+            在{" "}
             <Link
               href="/sources"
               className="text-primary underline underline-offset-2"
             >
-              Sources
+              来源
             </Link>{" "}
-            page. The agent will create pages here, and you'll watch the graph
-            grow as you ingest more.
+            页面添加一个来源。智能体会在此创建页面，随着你持续摄取，图谱会不断生长。
           </p>
         </div>
       </PageContainer>

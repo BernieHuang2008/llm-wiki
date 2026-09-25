@@ -1,66 +1,24 @@
 import { NextResponse } from "next/server";
 
-import { getApiKey, queryWiki } from "@llm-wiki/core";
-import { createClient, ContextLengthError, RateLimitError, UnknownModelError } from "@llm-wiki/llm";
-
-import { openWikiContext } from "@/lib/server-wiki";
+import { submitTask } from "@/lib/task-service";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
 
-type QueryBody = {
-  question?: string;
-  model?: string;
-};
-
+// POST /api/query — records a query task and returns 202.
+//
+// The answer is produced in the background; poll GET /api/tasks/<id> for it.
+// Closing the page no longer cancels the work.
 export async function POST(req: Request) {
-  let body: QueryBody;
+  let body: Record<string, unknown>;
   try {
-    body = (await req.json()) as QueryBody;
+    body = (await req.json()) as Record<string, unknown>;
   } catch {
-    return NextResponse.json({ error: "expected JSON body" }, { status: 400 });
-  }
-  if (typeof body.question !== "string" || body.question.trim().length === 0) {
-    return NextResponse.json({ error: "question must be a non-empty string" }, { status: 400 });
+    return NextResponse.json({ error: "需要 JSON 请求体" }, { status: 400 });
   }
 
-  const { key } = await getApiKey();
-  const ctx = await openWikiContext();
-  const provider = ctx.settings.defaultModels.query.provider;
-  if (provider === "openrouter" && !key) {
-    return NextResponse.json(
-      { error: "OpenRouter API key not configured. Set one in Settings." },
-      { status: 400 },
-    );
+  const result = await submitTask("query", body);
+  if (!result.ok) {
+    return NextResponse.json({ ok: false, error: result.error }, { status: result.status });
   }
-  const client = createClient(key || "", provider);
-  const model = body.model ?? ctx.settings.defaultModels.query.model;
-
-  try {
-    const response = await queryWiki({
-      question: body.question,
-      wikiPath: ctx.wikiPath,
-      db: ctx.db,
-      client,
-      model,
-    });
-    return NextResponse.json({ ok: true, model, response });
-  } catch (err) {
-    const status =
-      err instanceof ContextLengthError || err instanceof UnknownModelError
-        ? 400
-        : err instanceof RateLimitError
-          ? 429
-          : 500;
-    return NextResponse.json(
-      {
-        ok: false,
-        error: (err as Error).message ?? "query failed",
-        type: (err as Error).name ?? "Error",
-      },
-      { status },
-    );
-  } finally {
-    ctx.db.close();
-  }
+  return NextResponse.json({ ok: true, queued: true, task: result.task }, { status: 202 });
 }

@@ -26,6 +26,16 @@ type Props = {
   sources?: ReadonlyArray<SourceLink>;
 };
 
+// Display labels for the stored page-type values. The values themselves stay
+// English because they are frontmatter keys; only the rendered label changes.
+const TYPE_LABEL: Record<Props["type"], string> = {
+  entity: "实体",
+  concept: "概念",
+  source: "来源",
+  comparison: "对比",
+  overview: "概览",
+};
+
 export function PageView(props: Props) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -90,34 +100,34 @@ export function PageView(props: Props) {
           <div>
             <h1 className="text-3xl font-semibold tracking-tight">{props.title}</h1>
             <p className="mt-1 text-xs uppercase tracking-wider text-muted-foreground">
-              {props.type} · created {props.created} · updated {props.updated}
+              {TYPE_LABEL[props.type]} · 创建于 {props.created} · 更新于 {props.updated}
               {props.tags.length > 0 ? ` · ${props.tags.join(", ")}` : null}
             </p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => setEditing(true)}>
-              Edit
+              编辑
             </Button>
             <Link
               href={`/wiki/${props.slug}/history`}
               className="inline-flex items-center rounded-md border border-input bg-background px-3 py-1 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-              title="See backups + diff against the current page"
+              title="查看备份并与当前页面比对差异"
             >
-              History
+              历史
             </Link>
             <Button
               variant="ghost"
               onClick={openDeleteDialog}
               className="text-muted-foreground hover:text-destructive"
             >
-              Delete
+              删除
             </Button>
           </div>
         </header>
       ) : (
         <header className="mb-6 border-b border-border pb-4">
           <p className="text-xs uppercase tracking-wider text-muted-foreground">
-            Editing {props.slug}
+            正在编辑 {props.slug}
           </p>
         </header>
       )}
@@ -139,11 +149,10 @@ export function PageView(props: Props) {
           {props.sources && props.sources.length > 0 ? (
             <section className="mt-10 border-t border-border pt-4">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Sources ({props.sources.length})
+                来源（{props.sources.length}）
               </h2>
               <p className="mt-1 text-xs text-muted-foreground/80">
-                Original input(s) this page was compiled from. The raw bytes are
-                preserved untouched on disk.
+                本页面由这些原始输入编译而成。原始字节在磁盘上保持原样，不做改动。
               </p>
               <ul className="mt-2 flex flex-wrap gap-1.5">
                 {props.sources.map((s) => (
@@ -165,11 +174,11 @@ export function PageView(props: Props) {
 
           <section className="mt-10 border-t border-border pt-4">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Backlinks ({props.backlinks.length})
+              反向链接（{props.backlinks.length}）
             </h2>
             {props.backlinks.length === 0 ? (
               <p className="mt-2 text-sm text-muted-foreground">
-                Nothing else in the wiki links here yet.
+                知识库中暂时没有其他页面链接到此处。
               </p>
             ) : (
               <ul className="mt-2 space-y-2 text-sm">
@@ -202,7 +211,7 @@ export function PageView(props: Props) {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="font-display text-h3 font-semibold">
-              Move this page to trash?
+              将此页面移入回收站？
             </h2>
             <p className="mt-1 text-ui text-muted-foreground">
               <strong className="text-foreground">{props.title}</strong>
@@ -210,20 +219,17 @@ export function PageView(props: Props) {
 
             <div className="mt-4 space-y-2 text-ui">
               <p>
-                The page file will move to{" "}
+                页面文件将移动到{" "}
                 <code className="font-mono text-[12px]">
                   .llm-wiki/trash/wiki/
                 </code>
-                . Recoverable for 30 days, plus a one-click <strong>Undo</strong>{" "}
-                option will appear on the next screen.
+                。30 天内可恢复，并且下一个界面会出现一键<strong>撤销</strong>选项。
               </p>
               {backlinkCount !== null && backlinkCount > 0 ? (
                 <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-[13px] text-amber-800 dark:text-amber-200">
                   <p>
-                    <strong>{backlinkCount} other page{backlinkCount === 1 ? "" : "s"}</strong>{" "}
-                    link{backlinkCount === 1 ? "s" : ""} to this one — those
-                    references become broken links. Lint will flag them so you
-                    can clean up.
+                    <strong>{backlinkCount} 个其他页面</strong>{" "}
+                    链接到本页——这些引用将变为失效链接。体检会将其标记出来，便于你清理。
                   </p>
                   {props.backlinks.length > 0 ? (
                     <ul className="mt-2 list-disc pl-5 text-[12px]">
@@ -232,7 +238,7 @@ export function PageView(props: Props) {
                       ))}
                       {props.backlinks.length > 3 ? (
                         <li className="text-muted-foreground">
-                          + {props.backlinks.length - 3} more
+                          另外 {props.backlinks.length - 3} 个
                         </li>
                       ) : null}
                     </ul>
@@ -253,7 +259,7 @@ export function PageView(props: Props) {
                 onClick={() => setDeleteOpen(false)}
                 disabled={deleting}
               >
-                Cancel
+                取消
               </Button>
               <Button
                 variant="outline"
@@ -261,7 +267,7 @@ export function PageView(props: Props) {
                 disabled={deleting}
                 className="border-destructive/40 text-destructive hover:bg-destructive/10"
               >
-                {deleting ? "Moving to trash…" : "Move to trash"}
+                {deleting ? "正在移入回收站…" : "移入回收站"}
               </Button>
             </div>
           </div>

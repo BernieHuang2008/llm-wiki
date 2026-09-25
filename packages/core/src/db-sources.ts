@@ -11,6 +11,7 @@ type SourceRowDb = {
   ingested_at: string | null;
   url: string | null;
   title: string | null;
+  ingest_error: string | null;
 };
 
 function rowFromDb(r: SourceRowDb): SourceRow {
@@ -22,8 +23,8 @@ function rowFromDb(r: SourceRowDb): SourceRow {
 
 export function insertSource(db: Db, source: SourceRow): void {
   db.prepare(
-    `INSERT INTO sources (id, filename, original_name, format, size_bytes, added_at, ingested_at, url, title)
-     VALUES (@id, @filename, @original_name, @format, @size_bytes, @added_at, @ingested_at, @url, @title)`,
+    `INSERT INTO sources (id, filename, original_name, format, size_bytes, added_at, ingested_at, url, title, ingest_error)
+     VALUES (@id, @filename, @original_name, @format, @size_bytes, @added_at, @ingested_at, @url, @title, @ingest_error)`,
   ).run(source);
 }
 
@@ -38,7 +39,8 @@ export function updateSource(db: Db, source: SourceRow): void {
              added_at = @added_at,
              ingested_at = @ingested_at,
              url = @url,
-             title = @title
+             title = @title,
+             ingest_error = @ingest_error
        WHERE id = @id`,
     )
     .run(source);

@@ -11,7 +11,7 @@ export function AboutTab() {
   const [replayError, setReplayError] = useState<string | null>(null);
 
   async function replayTour() {
-    if (!confirm("Replay the first-run welcome wizard? Your topic and API key stay set.")) return;
+    if (!confirm("要重新播放首次使用的欢迎向导吗？你的主题和 API 密钥会保持不变。")) return;
     setReplayBusy(true);
     setReplayError(null);
     try {
@@ -34,7 +34,7 @@ export function AboutTab() {
       <div>
         <h2 className="text-lg font-medium">LLM Wiki</h2>
         <p className="mt-1 text-muted-foreground">
-          Local-first knowledge base maintained by an LLM agent. Built by{" "}
+          由大语言模型智能体维护的本地优先知识库。作者{" "}
           <a
             href="https://github.com/ddsyasas"
             target="_blank"
@@ -43,47 +43,47 @@ export function AboutTab() {
           >
             Yasas
           </a>
-          .
+          。
         </p>
       </div>
 
       <div>
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Pattern
+          模式
         </h3>
         <p className="mt-1 text-muted-foreground">
-          Implements{" "}
+          实现了{" "}
           <a
             href="https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f"
             target="_blank"
             rel="noreferrer"
             className="underline underline-offset-2 hover:text-foreground"
           >
-            Andrej Karpathy&apos;s LLM Wiki pattern
+            Andrej Karpathy 的 LLM Wiki 模式
           </a>{" "}
-          — three layers (raw sources, wiki, schema), three operations (ingest, query, lint),
-          one folder of markdown files. The wiki is a persistent compounding artifact, not
-          query-time retrieval.
+          ——三个层次（原始来源、wiki、schema）、三项操作（入库、查询、体检），
+          全部存放在一个装满 markdown 文件的文件夹里。wiki 是持续积累的长期成果，
+          而不是查询时才做的检索。
         </p>
       </div>
 
       <div>
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Privacy
+          隐私
         </h3>
         <p className="mt-1 text-muted-foreground">
-          Everything runs on your machine. No telemetry, no analytics, no remote storage.
-          API calls go only to OpenRouter. Your wiki content lives only in the folder you
-          chose — sync it with git/Dropbox/iCloud if you want, or don&apos;t.
+          一切都运行在你的机器上。没有遥测、没有统计分析、没有远程存储。
+          API 调用只发往 OpenRouter。你的 wiki 内容只存在于你选择的文件夹中——
+          想用 git／Dropbox／iCloud 同步就同步，不想同步也无妨。
         </p>
       </div>
 
       <div>
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          License
+          许可
         </h3>
         <p className="mt-1 text-muted-foreground">
-          MIT. Source code at{" "}
+          MIT。源代码位于{" "}
           <a
             href="https://github.com/ddsyasas/llm-wiki"
             target="_blank"
@@ -92,27 +92,27 @@ export function AboutTab() {
           >
             github.com/ddsyasas/llm-wiki
           </a>
-          .
+          。
         </p>
       </div>
 
       <div>
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Acknowledgements
+          致谢
         </h3>
         <p className="mt-1 text-muted-foreground">
-          Built on Next.js, Tailwind, shadcn/ui, better-sqlite3, mammoth, gray-matter,
-          chokidar, and the openai SDK pointed at OpenRouter.
+          基于 Next.js、Tailwind、shadcn/ui、better-sqlite3、mammoth、gray-matter、
+          chokidar，以及指向 OpenRouter 的 openai SDK 构建。
         </p>
       </div>
 
       <div className="border-t border-border pt-4">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          First-run tour
+          首次使用引导
         </h3>
         <p className="mt-1 text-muted-foreground">
-          The 4-step welcome wizard (intro + topic + key + feature tour) only
-          fires on the very first app open. Replay it any time:
+          4 步欢迎向导（简介 + 主题 + 密钥 + 功能导览）只会在首次打开应用时出现。
+          你可以随时重新播放：
         </p>
         <Button
           variant="outline"
@@ -121,7 +121,7 @@ export function AboutTab() {
           disabled={replayBusy}
           className="mt-2"
         >
-          {replayBusy ? "Resetting…" : "Replay welcome tour"}
+          {replayBusy ? "重置中…" : "重新播放欢迎向导"}
         </Button>
         {replayError ? (
           <p className="mt-2 text-xs text-destructive">{replayError}</p>

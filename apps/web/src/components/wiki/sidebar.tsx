@@ -16,11 +16,11 @@ type PageSummary = {
 
 const TYPE_ORDER = ["overview", "concept", "entity", "comparison", "source"];
 const TYPE_LABEL: Record<string, string> = {
-  overview: "Overviews",
-  concept: "Concepts",
-  entity: "Entities",
-  comparison: "Comparisons",
-  source: "Sources",
+  overview: "概览",
+  concept: "概念",
+  entity: "实体",
+  comparison: "对比",
+  source: "来源",
 };
 
 export function WikiSidebar() {
@@ -73,7 +73,7 @@ export function WikiSidebar() {
       <div className="px-4 pb-2 pt-4">
         <Input
           type="search"
-          placeholder="Filter pages…"
+          placeholder="筛选页面…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           className="h-8 border-border/70 bg-background/60 text-ui"
@@ -89,22 +89,22 @@ export function WikiSidebar() {
           )}
         >
           <span className="font-mono text-[10px] text-primary">¶</span>
-          Wiki index
+          Wiki 索引
         </Link>
 
         {error ? (
           <p className="px-3 text-caption text-destructive">{error}</p>
         ) : null}
         {!pages && !error ? (
-          <p className="px-3 text-caption text-muted-foreground">Loading…</p>
+          <p className="px-3 text-caption text-muted-foreground">加载中…</p>
         ) : null}
         {pages && pages.length === 0 ? (
           <div className="mx-2 mt-2 rounded-md border border-dashed border-border/70 bg-background/40 px-3 py-3 text-caption text-muted-foreground">
-            No pages yet. Head to{" "}
+            还没有页面。前往{" "}
             <Link href="/sources" className="text-foreground underline underline-offset-2">
-              Sources
+              来源
             </Link>{" "}
-            to add one.
+            添加一个。
           </div>
         ) : null}
 

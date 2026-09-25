@@ -12,7 +12,7 @@ import {
   searchPages,
   upsertPage,
 } from "./db-pages";
-import { insertSource, updateSource } from "./db-sources";
+import { insertSource, listSourceRows, updateSource } from "./db-sources";
 import { upsertSyncState } from "./db-sync";
 import { insertUsage } from "./db-usage";
 import { parseIndexEntries, renderIndex } from "./index-builder";
@@ -302,6 +302,7 @@ export async function saveRawSource(opts: SaveRawOptions): Promise<SaveRawResult
     ingested_at: null,
     url: opts.url ?? null,
     title: opts.title,
+    ingest_error: null,
   };
   insertSource(opts.db, sourceRow);
 
@@ -312,7 +313,22 @@ export function markSourceIngested(db: Db, sourceId: string): void {
   // Look up + flip ingested_at; tolerant if the row vanished between calls.
   const existingRows = listSourceRowsById(db, sourceId);
   if (!existingRows) return;
-  updateSource(db, { ...existingRows, ingested_at: new Date().toISOString() });
+  updateSource(db, { ...existingRows, ingested_at: new Date().toISOString(), ingest_error: null });
+}
+
+/**
+ * Records the failure on the source row so the sources list can show *why* an
+ * item is waiting instead of a bare "pending". Cleared by the next success.
+ */
+export function markSourceFailed(db: Db, sourceId: string, error: string): void {
+  const existing = listSourceRowsById(db, sourceId);
+  if (!existing) return;
+  updateSource(db, { ...existing, ingest_error: error });
+}
+
+/** Sources that are not done yet: never ingested, or failed and awaiting retry. */
+export function listUnfinishedSources(db: Db): SourceRow[] {
+  return listSourceRows(db).filter((s) => s.ingested_at === null);
 }
 
 function listSourceRowsById(db: Db, id: string): SourceRow | null {
@@ -369,6 +385,7 @@ export async function ingestPastedText(
     ingested_at: null,
     url: null,
     title: cleanTitle,
+    ingest_error: null,
   };
   insertSource(opts.db, sourceRow);
 
@@ -391,11 +408,17 @@ export async function ingestPastedText(
       return { sourceId, rawFilename, response, dryRun: true };
     }
 
-    updateSource(opts.db, { ...sourceRow, ingested_at: new Date().toISOString() });
+    updateSource(opts.db, {
+      ...sourceRow,
+      ingested_at: new Date().toISOString(),
+      ingest_error: null,
+    });
     return { sourceId, rawFilename, response, dryRun: false };
   } catch (err) {
-    // Source row stays in DB so the UI can show "Not yet ingested" with a Retry
-    // affordance later (Step 6 doesn't surface this yet, but the data is there).
+    // Source row stays in DB so the UI can show "尚未入库" with a Retry
+    // affordance later. The failure message is attached so the list can
+    // explain itself instead of showing a bare "pending".
+    markSourceFailed(opts.db, sourceId, (err as Error).message ?? "ingest failed");
     throw err;
   }
 }

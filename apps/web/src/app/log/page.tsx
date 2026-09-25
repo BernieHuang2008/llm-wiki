@@ -55,26 +55,26 @@ export default async function LogPage() {
   return (
     <PageContainer width="lg">
       <PageHeader
-        eyebrow="Wiki timeline"
-        title="Log"
+        eyebrow="知识库时间线"
+        title="日志"
         description={
           <>
-            Every ingest, edit, lint, and schema-save in this wiki, newest first. Mirrors{" "}
-            <code className="font-mono">{ctx.wikiPath}/log.md</code> on disk — feel free to
-            open it in your editor too.
+            这个知识库中的每一次入库、编辑、体检和 schema 保存，最新的排在最前。它镜像磁盘上的{" "}
+            <code className="font-mono">{ctx.wikiPath}/log.md</code> —— 你也可以随时
+            用编辑器打开它。
           </>
         }
       />
 
       {entries.length === 0 ? (
         <p className="rounded-md border border-border/70 bg-card p-4 text-sm text-muted-foreground">
-          No entries yet. The log fills in as you ingest sources, edit pages, run lint, or
-          save the schema.
+          还没有记录。随着你入库来源、编辑页面、运行体检或
+          保存 schema，日志会逐渐填充起来。
         </p>
       ) : (
         <>
           <p className="mb-4 text-caption uppercase tracking-wider text-muted-foreground">
-            {entries.length} entr{entries.length === 1 ? "y" : "ies"} · newest first
+            {entries.length} 条记录 · 最新在前
           </p>
           <article className="space-y-4">
             {newestFirst.map((entry, i) => (

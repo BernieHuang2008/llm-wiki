@@ -19,7 +19,7 @@ type Action =
       id: string;
       label: string;
       hint?: string;
-      group: "Pages" | "Chats" | "Go to" | "Wikis" | "App" | "Cross-wiki pages";
+      group: "页面" | "对话" | "前往" | "知识库" | "应用" | "跨库页面";
       href: string;
     }
   | {
@@ -27,7 +27,7 @@ type Action =
       id: string;
       label: string;
       hint?: string;
-      group: "Wikis";
+      group: "知识库";
       path: string;
     }
   | {
@@ -35,7 +35,7 @@ type Action =
       id: string;
       label: string;
       hint?: string;
-      group: "Cross-wiki pages";
+      group: "跨库页面";
       wikiPath: string;
       pageSlug: string;
     }
@@ -44,29 +44,29 @@ type Action =
       id: string;
       label: string;
       hint?: string;
-      group: "App";
+      group: "应用";
     }
   | {
       type: "copy-text";
       id: string;
       label: string;
       hint?: string;
-      group: "App";
+      group: "应用";
       value: string;
     };
 
 const STATIC_NAV_ACTIONS: Action[] = [
-  { type: "navigate", id: "go-wiki", label: "Wiki", hint: "browse pages", group: "Go to", href: "/wiki" },
-  { type: "navigate", id: "go-graph", label: "Graph", hint: "3D knowledge view", group: "Go to", href: "/graph" },
-  { type: "navigate", id: "go-sources", label: "Sources", hint: "add a source", group: "Go to", href: "/sources" },
-  { type: "navigate", id: "go-query", label: "Query", hint: "ask a question", group: "Go to", href: "/query" },
-  { type: "navigate", id: "go-chats", label: "Chats", hint: "start or open a chat", group: "Go to", href: "/chats" },
-  { type: "navigate", id: "go-lint", label: "Lint", hint: "wiki health check", group: "Go to", href: "/lint" },
-  { type: "navigate", id: "go-log", label: "Log", hint: "wiki timeline", group: "Go to", href: "/log" },
-  { type: "navigate", id: "go-dashboard", label: "Dashboard", hint: "per-wiki stats + cumulative spend", group: "Go to", href: "/dashboard" },
-  { type: "navigate", id: "go-schema", label: "Schema editor", hint: "edit CLAUDE.md", group: "Go to", href: "/schema" },
-  { type: "navigate", id: "go-settings", label: "Settings", hint: "models, theme, API key", group: "Go to", href: "/settings" },
-  { type: "navigate", id: "manage-wikis", label: "Manage wikis…", hint: "create, switch, remove", group: "Wikis", href: "/settings?tab=wikis" },
+  { type: "navigate", id: "go-wiki", label: "知识库", hint: "浏览页面", group: "前往", href: "/wiki" },
+  { type: "navigate", id: "go-graph", label: "图谱", hint: "3D 知识视图", group: "前往", href: "/graph" },
+  { type: "navigate", id: "go-sources", label: "来源", hint: "添加来源", group: "前往", href: "/sources" },
+  { type: "navigate", id: "go-query", label: "查询", hint: "提出一个问题", group: "前往", href: "/query" },
+  { type: "navigate", id: "go-chats", label: "对话", hint: "开始或打开一个对话", group: "前往", href: "/chats" },
+  { type: "navigate", id: "go-lint", label: "体检", hint: "知识库健康检查", group: "前往", href: "/lint" },
+  { type: "navigate", id: "go-log", label: "日志", hint: "知识库时间线", group: "前往", href: "/log" },
+  { type: "navigate", id: "go-dashboard", label: "仪表盘", hint: "各知识库统计 + 累计花费", group: "前往", href: "/dashboard" },
+  { type: "navigate", id: "go-schema", label: "Schema 编辑器", hint: "编辑 CLAUDE.md", group: "前往", href: "/schema" },
+  { type: "navigate", id: "go-settings", label: "设置", hint: "模型、主题、API 密钥", group: "前往", href: "/settings" },
+  { type: "navigate", id: "manage-wikis", label: "管理知识库…", hint: "创建、切换、移除", group: "知识库", href: "/settings?tab=wikis" },
 ];
 
 type PageItem = { slug: string; title: string };
@@ -173,7 +173,7 @@ export function CommandPalette() {
       id: `page-${p.slug}`,
       label: p.title,
       hint: p.slug,
-      group: "Pages",
+      group: "页面",
       href: `/wiki/${p.slug}`,
     }));
     const chatActions: Action[] = chats.map((c) => ({
@@ -181,15 +181,15 @@ export function CommandPalette() {
       id: `chat-${c.id}`,
       label: c.title,
       hint: c.folder,
-      group: "Chats",
+      group: "对话",
       href: `/chats/${c.id}`,
     }));
     const wikiActions: Action[] = wikis.map((w) => ({
       type: "switch-wiki",
       id: `wiki-${w.path}`,
-      label: `Switch to ${w.topic ?? w.path.split("/").pop() ?? w.path}`,
+      label: `切换到 ${w.topic ?? w.path.split("/").pop() ?? w.path}`,
       hint: w.path,
-      group: "Wikis",
+      group: "知识库",
       path: w.path,
     }));
     const crossPageActions: Action[] = crossWikiPages.map((p) => ({
@@ -197,7 +197,7 @@ export function CommandPalette() {
       id: `cross-${p.wikiPath}-${p.slug}`,
       label: p.title,
       hint: `${p.wikiTopic ?? p.wikiPath.split("/").pop()} → ${p.slug}`,
-      group: "Cross-wiki pages",
+      group: "跨库页面",
       wikiPath: p.wikiPath,
       pageSlug: p.slug,
     }));
@@ -205,18 +205,18 @@ export function CommandPalette() {
       {
         type: "toggle-theme",
         id: "toggle-theme",
-        label: `Theme: cycle (currently ${theme})`,
-        hint: "light → dark → auto",
-        group: "App",
+        label: `主题：循环切换（当前 ${theme}）`,
+        hint: "浅色 → 深色 → 跟随系统",
+        group: "应用",
       },
       ...(activeWikiPath
         ? [
             {
               type: "copy-text" as const,
               id: "copy-wiki-path",
-              label: "Copy active wiki folder path",
+              label: "复制当前知识库文件夹路径",
               hint: activeWikiPath,
-              group: "App" as const,
+              group: "应用" as const,
               value: activeWikiPath,
             },
           ]
@@ -293,7 +293,7 @@ export function CommandPalette() {
         if (!res.ok) {
           const j = (await res.json().catch(() => ({}))) as { error?: string };
           // eslint-disable-next-line no-alert
-          alert(j.error ?? `Switch failed (HTTP ${res.status})`);
+          alert(j.error ?? `切换失败（HTTP ${res.status}）`);
           return;
         }
         close();
@@ -370,14 +370,14 @@ export function CommandPalette() {
               setActiveIndex(0);
             }}
             onKeyDown={onKeyDown}
-            placeholder="Jump to a page, chat, or screen…"
+            placeholder="跳转到页面、对话或界面…"
             className="h-10 border-0 bg-transparent text-base focus-visible:ring-0"
           />
         </div>
         <ul ref={listRef} className="max-h-[50vh] overflow-y-auto py-1">
           {flatItems.length === 0 ? (
             <li className="px-3 py-4 text-center text-sm text-muted-foreground">
-              No matches.
+              没有匹配项。
             </li>
           ) : (
             Array.from(grouped.entries()).map(([group, list]) => (
@@ -417,7 +417,7 @@ export function CommandPalette() {
           )}
         </ul>
         <div className="border-t border-border px-3 py-1.5 text-[11px] text-muted-foreground">
-          ↑↓ navigate · ⏎ open · esc close · ⌘K toggle
+          ↑↓ 导航 · ⏎ 打开 · esc 关闭 · ⌘K 切换
         </div>
       </div>
     </div>

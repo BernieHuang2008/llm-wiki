@@ -15,12 +15,12 @@ import { cn } from "@/lib/utils";
 type Tab = "general" | "wikis" | "models" | "api" | "costs" | "about";
 const TAB_ORDER: Tab[] = ["general", "wikis", "models", "api", "costs", "about"];
 const TAB_LABEL: Record<Tab, string> = {
-  general: "General",
-  wikis: "Wikis",
-  models: "Models",
+  general: "通用",
+  wikis: "知识库",
+  models: "模型",
   api: "API",
-  costs: "Costs",
-  about: "About",
+  costs: "花费",
+  about: "关于",
 };
 
 function parseTab(raw: string | null): Tab {
@@ -41,9 +41,9 @@ export default function SettingsPage() {
   return (
     <PageContainer>
       <PageHeader
-        eyebrow="Configuration"
-        title="Settings"
-        description="Per-wiki preferences live in your wiki folder. The API key lives in your OS keychain (or ~/.llm-wiki/config.json as fallback)."
+        eyebrow="配置"
+        title="设置"
+        description="每个知识库的偏好设置保存在你的知识库文件夹中。API 密钥保存在操作系统钥匙串中（或以 ~/.llm-wiki/config.json 作为回退）。"
       />
 
       <nav

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownView } from "@/components/wiki/markdown-view";
 import { PromoteMessageDialog } from "@/components/chats/promote-message";
+import { fetchTask, isActive } from "@/lib/task-client";
 import { cn } from "@/lib/utils";
 
 type ChatRow = {
@@ -41,6 +42,7 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
   const [chat, setChat] = useState<ChatPayload>(initialChat);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
 
   const [editingTitle, setEditingTitle] = useState(false);
@@ -56,13 +58,23 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
   const [ingestChatResult, setIngestChatResult] = useState<null | {
     newPages: Array<{ slug: string; title: string }>;
     updatedPages: Array<{ slug: string }>;
+    pending: boolean;
   }>(null);
   const [ingestChatError, setIngestChatError] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chat.messages.length, busy]);
+  }, [chat.messages.length]);
+
+  // Stops polling when the user leaves; the server-side task continues.
+  const aliveRef = useRef(true);
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+    };
+  }, []);
 
   const folderChoices = useMemo(
     () => folders.filter((f) => f !== chat.row.folder),
@@ -82,15 +94,16 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
     if (!input.trim() || busy) return;
     setBusy(true);
     setSendError(null);
+    setProgress("已提交，等待执行…");
     const optimisticUser: ChatMessage = {
       role: "user",
-      time: new Date().toLocaleTimeString("en-GB"),
+      time: new Date().toLocaleTimeString("zh-CN", { hour12: false }),
       content: input,
     };
     setChat((prev) => ({ ...prev, messages: [...prev.messages, optimisticUser] }));
     const sent = input;
     setInput("");
-    console.log(`%c[Chat Send] User message: "${sent}"`, "color: #3b82f6; font-weight: bold;");
+    console.log(`%c[对话发送] 用户消息："${sent}"`, "color: #3b82f6; font-weight: bold;");
     try {
       const res = await fetch(`/api/chats/${chatId}/messages`, {
         method: "POST",
@@ -98,34 +111,42 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
         body: JSON.stringify({ message: sent }),
       });
       const json = (await res.json()) as {
-        ok?: true;
-        assistant?: ChatMessage;
+        ok?: boolean;
         error?: string;
-        providerUsed?: string;
-        modelUsed?: string;
+        task?: { id: string };
       };
-      if (!res.ok || !json.ok || !json.assistant) {
+      if (!res.ok || !json.ok || !json.task) {
         throw new Error(json.error ?? `HTTP ${res.status}`);
       }
-      console.log(
-        `%c[Chat Success] Selected ${json.providerUsed || "unknown"} to chat: "${sent}" -> Status: Success`,
-        "color: #10b981; font-weight: bold;",
-      );
-      console.log(`%c[Chat Success] Model used: ${json.modelUsed || "unknown"}`, "color: #10b981;");
+
+      // The user turn is already saved server-side; wait for the assistant half
+      // of the turn. Leaving the page does not cancel it.
+      for (;;) {
+        const task = await fetchTask(json.task.id);
+        if (!aliveRef.current) return;
+        setProgress(task.progress ?? null);
+        if (!isActive(task)) {
+          if (task.status !== "succeeded") {
+            throw new Error(task.error ?? "生成回复失败。");
+          }
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+      }
+
       // Re-read the chat so we get the canonical message list with server-side
       // timestamps + row metadata.
       await refreshChat();
       router.refresh(); // bumps the sidebar
     } catch (err) {
-      console.error(
-        `[Chat Failed] message: "${sent}" -> Status: Failed. Error: ${(err as Error).message}`,
-      );
+      console.error(`[对话失败] 消息："${sent}" -> ${(err as Error).message}`);
       setSendError((err as Error).message);
       // Roll back the optimistic user message so the user can retry.
       setChat((prev) => ({ ...prev, messages: prev.messages.slice(0, -1) }));
       setInput(sent);
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   }
 
@@ -186,7 +207,7 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
     if (chat.messages.length === 0) return;
     if (
       !confirm(
-        `Ingest this chat as a wiki source? The agent will read the whole conversation and may create or update wiki pages from it.`,
+        "把这个对话作为 wiki 来源入库？智能体会读完整段对话，并据此新建或更新 wiki 页面。任务会在后台执行，离开本页不会中断。",
       )
     )
       return;
@@ -204,24 +225,41 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           text: body,
-          title: `Chat: ${chat.row.title}`,
+          title: `对话：${chat.row.title}`,
         }),
       });
       const json = (await res.json()) as {
-        ok?: true;
-        response?: {
-          newPages: Array<{ slug: string; title: string; type: string }>;
-          pageUpdates: Array<{ slug: string; updateReason: string }>;
-        };
+        ok?: boolean;
         error?: string;
+        task?: { id: string };
       };
-      if (!res.ok || !json.ok || !json.response) {
+      if (!res.ok || !json.ok || !json.task) {
         throw new Error(json.error ?? `HTTP ${res.status}`);
       }
-      setIngestChatResult({
-        newPages: json.response.newPages.map((p) => ({ slug: p.slug, title: p.title })),
-        updatedPages: json.response.pageUpdates.map((p) => ({ slug: p.slug })),
-      });
+
+      // Poll the background ingest task instead of holding the request open.
+      const taskId = json.task.id;
+      for (;;) {
+        const task = await fetchTask(taskId);
+        if (!aliveRef.current) return;
+        if (!isActive(task)) {
+          if (task.status !== "succeeded") {
+            throw new Error(task.error ?? "入库失败。");
+          }
+          const out = (task.output ?? {}) as {
+            newPages?: Array<{ slug: string; title: string }>;
+            pageUpdates?: Array<{ slug: string }>;
+            kind?: "preview" | "applied";
+          };
+          setIngestChatResult({
+            newPages: (out.newPages ?? []).map((p) => ({ slug: p.slug, title: p.title })),
+            updatedPages: (out.pageUpdates ?? []).map((p) => ({ slug: p.slug })),
+            pending: out.kind === "preview",
+          });
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
     } catch (err) {
       setIngestChatError((err as Error).message);
     } finally {
@@ -256,20 +294,20 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
                 setEditingTitle(true);
               }}
               className="block text-left text-lg font-medium tracking-tight hover:underline"
-              title="Click to rename"
+              title="点击重命名"
             >
               {chat.row.pinned ? "★ " : ""}
               {chat.row.title}
             </button>
           )}
           <p className="mt-0.5 text-[11px] uppercase tracking-wider text-muted-foreground">
-            {chat.row.folder} · {chat.messages.length} messages
+            {chat.row.folder} · {chat.messages.length} 条消息
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs">
           <div className="relative">
             <Button variant="outline" size="sm" onClick={() => setMoveOpen((o) => !o)}>
-              Move
+              移动
             </Button>
             {moveOpen && folderChoices.length > 0 ? (
               <ul className="absolute right-0 z-10 mt-1 min-w-[140px] rounded-md border border-border bg-popover p-1 shadow-md">
@@ -288,19 +326,19 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
             ) : null}
           </div>
           <Button variant="outline" size="sm" onClick={onTogglePin}>
-            {chat.row.pinned ? "Unpin" : "Pin"}
+            {chat.row.pinned ? "取消置顶" : "置顶"}
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={onIngestChat}
             disabled={ingestingChat || chat.messages.length === 0}
-            title="Run the whole chat through the ingest pipeline as a source"
+            title="把整段对话作为来源跑一遍入库流程"
           >
-            {ingestingChat ? "Ingesting…" : "Ingest → wiki"}
+            {ingestingChat ? "提交中…" : "入库到 wiki"}
           </Button>
           <Button variant="ghost" size="sm" onClick={onDelete}>
-            Delete
+            删除
           </Button>
         </div>
       </header>
@@ -308,14 +346,16 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
       {ingestChatResult ? (
         <div className="border-b border-emerald-500/30 bg-emerald-500/10 px-6 py-3 text-sm text-emerald-800 dark:text-emerald-200">
           <p>
-            <strong>Filed back into the wiki.</strong>{" "}
-            {ingestChatResult.newPages.length} new page
-            {ingestChatResult.newPages.length === 1 ? "" : "s"},{" "}
-            {ingestChatResult.updatedPages.length} updated.
+            <strong>{ingestChatResult.pending ? "提案已生成，等待确认。" : "已归档进 wiki。"}</strong>{" "}
+            新建 {ingestChatResult.newPages.length} 个页面，更新{" "}
+            {ingestChatResult.updatedPages.length} 个。
+            {ingestChatResult.pending
+              ? " 审批开关已开启，请在“来源”页确认后再写入。"
+              : ""}
           </p>
           {ingestChatResult.newPages.length > 0 ? (
             <p className="mt-1 text-xs">
-              New:{" "}
+              新建：{" "}
               {ingestChatResult.newPages.map((p, i) => (
                 <span key={p.slug}>
                   <a
@@ -324,7 +364,7 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
                   >
                     {p.title}
                   </a>
-                  {i < ingestChatResult.newPages.length - 1 ? ", " : ""}
+                  {i < ingestChatResult.newPages.length - 1 ? "、" : ""}
                 </span>
               ))}
             </p>
@@ -333,7 +373,7 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
       ) : null}
       {ingestChatError ? (
         <div className="border-b border-destructive/30 bg-destructive/10 px-6 py-2 text-sm text-destructive">
-          Chat ingest failed: {ingestChatError}
+          对话入库失败：{ingestChatError}
         </div>
       ) : null}
 
@@ -348,7 +388,7 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
       <div className="flex-1 overflow-y-auto px-6 py-6">
         {chat.messages.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Empty thread. Ask the wiki a question to start it off.
+            还没有消息。先向 wiki 提一个问题开始这段对话。
           </p>
         ) : (
           <ol className="space-y-5">
@@ -375,7 +415,7 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
                         onClick={() => setPromoteFor(m)}
                         className="hover:text-foreground"
                       >
-                        Save as wiki page →
+                        保存为 wiki 页面 →
                       </button>
                     </div>
                   </div>
@@ -386,7 +426,7 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
         )}
         {busy ? (
           <p className="mt-4 text-xs text-muted-foreground">
-            Asking {chat.row.title} model…
+            {progress ? `${progress}` : "正在生成回复…"}（后台执行，离开本页也不会中断）
           </p>
         ) : null}
         {sendError ? (
@@ -401,7 +441,7 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
         <Textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask something..."
+          placeholder="问点什么…"
           rows={3}
           disabled={busy}
           onKeyDown={(e) => {
@@ -413,9 +453,9 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
           className="text-base"
         />
         <div className="mt-2 flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">Cmd/Ctrl + Enter to send</p>
+          <p className="text-xs text-muted-foreground">Cmd/Ctrl + Enter 发送</p>
           <Button type="submit" disabled={!input.trim() || busy}>
-            {busy ? "Sending…" : "Send"}
+            {busy ? "生成中…" : "发送"}
           </Button>
         </div>
       </form>

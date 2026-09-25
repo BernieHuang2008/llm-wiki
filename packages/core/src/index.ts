@@ -3,6 +3,7 @@ export * from "./types";
 export * from "./templates";
 export * from "./wiki";
 export * from "./db";
+export * from "./tasks";
 export * from "./db-pages";
 export * from "./db-sources";
 export { getChat, insertChat, updateChat, listChatRows } from "./db-chats";

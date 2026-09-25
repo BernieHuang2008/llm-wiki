@@ -46,7 +46,7 @@ export function SchemaEditorView() {
       const json = (await res.json()) as { ok?: true; error?: string };
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
       setOriginal(content);
-      setFlash("Saved. Previous version backed up to .llm-wiki/schema-history/.");
+      setFlash("已保存。先前版本已备份到 .llm-wiki/schema-history/。");
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -57,23 +57,23 @@ export function SchemaEditorView() {
   return (
     <PageContainer width="xl">
       <PageHeader
-        eyebrow="The LLM's contract"
-        title="Schema editor"
+        eyebrow="LLM 的契约"
+        title="Schema 编辑器"
         description={
           <>
-            Edits <code className="font-mono">CLAUDE.md</code> in your wiki folder. The schema
-            is the contract the LLM uses on every ingest/query/lint call. Previous versions
-            are kept in <code className="font-mono">.llm-wiki/schema-history/</code> (last 10).
+            编辑你知识库文件夹中的 <code className="font-mono">CLAUDE.md</code>。schema
+            是 LLM 在每次入库/查询/体检调用时使用的契约。先前版本
+            保存在 <code className="font-mono">.llm-wiki/schema-history/</code>（最近 10 个）。
           </>
         }
         actions={
           <>
             <Button onClick={onSave} disabled={!dirty || busy}>
-              {busy ? "Saving…" : dirty ? "Save schema" : "Saved"}
+              {busy ? "保存中…" : dirty ? "保存 schema" : "已保存"}
             </Button>
             {dirty ? (
               <Button variant="ghost" onClick={() => setContent(original)} disabled={busy}>
-                Revert
+                还原
               </Button>
             ) : null}
           </>
@@ -92,7 +92,7 @@ export function SchemaEditorView() {
       ) : null}
 
       {content === null ? (
-        <p className="text-ui text-muted-foreground">Loading…</p>
+        <p className="text-ui text-muted-foreground">加载中…</p>
       ) : (
         <>
           {/* Split pane fills the available viewport height so the editor
@@ -111,7 +111,7 @@ export function SchemaEditorView() {
             </div>
             <div className="flex flex-col">
               <h3 className="mb-2 text-caption font-semibold uppercase tracking-wider text-muted-foreground">
-                Preview
+                预览
               </h3>
               <div className="min-h-[calc(100vh-18rem)] flex-1 overflow-y-auto rounded-md border border-border/70 bg-card p-5">
                 <MarkdownView content={content} knownSlugs={[]} />

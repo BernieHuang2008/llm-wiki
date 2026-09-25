@@ -15,21 +15,21 @@ export function CostPreview({ text, model, contextOverhead, expectedOutputTokens
   if (!text.trim()) {
     return (
       <p className="text-xs text-muted-foreground">
-        Cost preview appears here as you type.
+        输入内容后，这里会显示费用估算。
       </p>
     );
   }
   const est = estimateCost(text, model, contextOverhead, expectedOutputTokens);
   return (
     <p className="text-xs text-muted-foreground">
-      Estimated:{" "}
+      预计：{" "}
       <strong className="text-foreground">{formatCostCents(est.costCents)}</strong>{" "}
       <span className="tabular-nums">
-        ({formatTokens(est.inputTokens)} in / {formatTokens(est.outputTokens)} out)
+        （输入 {formatTokens(est.inputTokens)} / 输出 {formatTokens(est.outputTokens)} 令牌）
       </span>{" "}
       · <code>{est.model}</code>
       {est.unknownPricing ? (
-        <span className="ml-1 italic">pricing unknown for this model</span>
+        <span className="ml-1 italic">该模型的价格未知</span>
       ) : null}
     </p>
   );

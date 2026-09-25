@@ -25,13 +25,13 @@ function relativeDate(iso: string): string {
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return iso;
   const diffMin = Math.floor((Date.now() - t) / 60_000);
-  if (diffMin < 1) return "just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffMin < 1) return "刚刚";
+  if (diffMin < 60) return `${diffMin} 分钟前`;
   const hours = Math.floor(diffMin / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return `${hours} 小时前`;
   const days = Math.floor(hours / 24);
-  if (days === 1) return "yesterday";
-  if (days < 7) return `${days}d ago`;
+  if (days === 1) return "昨天";
+  if (days < 7) return `${days} 天前`;
   return iso.slice(0, 16);
 }
 
@@ -72,7 +72,7 @@ export function HistoryDiffView({
           ?backup= so the URL is shareable / bookmarkable. */}
       <aside>
         <p className="mb-2 text-caption font-semibold uppercase tracking-wider text-muted-foreground">
-          Backups ({backups.length})
+          备份（{backups.length}）
         </p>
         <ul className="space-y-1">
           {backups.map((b) => {
@@ -104,8 +104,7 @@ export function HistoryDiffView({
       <section>
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <p className="text-caption text-muted-foreground">
-            <strong className="text-foreground">Diff</strong> — selected backup
-            vs current page body
+            <strong className="text-foreground">差异</strong> — 所选备份与当前页面正文的比对
           </p>
           {backupContent !== null ? (
             <p className="text-caption text-muted-foreground">
@@ -114,17 +113,17 @@ export function HistoryDiffView({
               </span>{" "}
               ·{" "}
               <span className="text-destructive">−{stats.removed}</span>
-              {" lines"}
+              {" 行"}
             </p>
           ) : null}
         </div>
         {backupContent === null ? (
           <p className="rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
-            Couldn&apos;t read the selected backup file.
+            无法读取所选的备份文件。
           </p>
         ) : changes.length === 0 ? (
           <p className="rounded-md border border-border/70 bg-card p-4 text-sm text-muted-foreground">
-            No diff.
+            无差异。
           </p>
         ) : (
           <pre className="overflow-x-auto rounded-md border border-border/70 bg-card p-3 font-mono text-[12px] leading-relaxed">

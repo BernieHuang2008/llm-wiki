@@ -68,6 +68,8 @@ export type SourceRow = {
   ingested_at: string | null;
   url: string | null;
   title: string | null;
+  /** Last ingest failure message; null once an ingest succeeds. */
+  ingest_error: string | null;
 };
 
 export type PageRow = {

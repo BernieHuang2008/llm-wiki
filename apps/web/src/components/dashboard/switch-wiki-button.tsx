@@ -41,7 +41,7 @@ export function SwitchWikiButton({ path }: { path: string }) {
         disabled={busy}
         className="rounded-md border border-border bg-background px-3 py-1.5 text-xs hover:border-primary/40 hover:bg-accent disabled:opacity-50"
       >
-        {busy ? "Switching…" : "Switch →"}
+        {busy ? "切换中…" : "切换 →"}
       </button>
       {error ? (
         <span className="text-xs text-destructive" role="alert">

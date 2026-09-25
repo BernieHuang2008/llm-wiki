@@ -16,27 +16,27 @@ export default function LocalModelsPage() {
     <PageContainer width="lg">
       <header className="mb-12">
         <p className="text-caption uppercase tracking-wider text-muted-foreground">
-          Setup guide
+          设置指南
         </p>
         <h1 className="mt-2 font-display text-display font-semibold tracking-tight">
-          Local models with Ollama.
+          使用 Ollama 运行本地模型。
         </h1>
         <p className="mt-5 max-w-2xl text-body font-serif text-muted-foreground">
-          Selecting <strong>Ollama (Local)</strong> as a provider in{" "}
+          在{" "}
           <Link href="/settings" className="text-primary underline underline-offset-2">
-            Settings → Models
+            设置 → 模型
           </Link>{" "}
-          routes that operation to a local LLM running on your own machine.
-          Free per query, fully private, but requires installing Ollama + pulling
-          the model yourself first. This page walks through both, plus what your
-          hardware can realistically run.
+          中选择 <strong>Ollama（本地）</strong>{" "}
+          作为提供商，会把该操作路由到你本机上运行的本地 LLM。
+          每次查询免费、完全私密，但需要先自行安装 Ollama 并拉取模型。
+          本页会逐步讲解这两件事，以及你的硬件实际上能跑什么。
         </p>
       </header>
 
       {/* TOC — long page, helps scanning */}
       <nav className="mb-12 rounded-md border border-border/70 bg-card p-4">
         <p className="mb-2 text-caption uppercase tracking-wider text-muted-foreground">
-          On this page
+          本页内容
         </p>
         <ul className="grid grid-cols-1 gap-x-6 gap-y-1 text-ui sm:grid-cols-2">
           {TOC.map((item) => (
@@ -49,63 +49,57 @@ export default function LocalModelsPage() {
         </ul>
       </nav>
 
-      <Section id="why" eyebrow="When to use this" title="Local vs cloud — when each makes sense">
+      <Section id="why" eyebrow="何时该用它" title="本地与云端 —— 各自适合什么情况">
         <p>
-          You probably want Ollama if any of these apply:
+          如果符合以下任一条，你大概会想用 Ollama：
         </p>
         <ul className="space-y-1">
           <li>
-            <strong>Privacy matters.</strong> Source documents never leave your
-            machine. Useful for confidential research, legal notes, medical
-            records, anything you wouldn't paste into ChatGPT.
+            <strong>隐私很重要。</strong>来源文档永不离开你的机器。适用于机密研究、法律笔记、医疗记录，以及任何你不会粘进 ChatGPT 的内容。
           </li>
           <li>
-            <strong>You ingest a lot.</strong> Pay-per-token costs add up if
-            you're feeding the wiki hundreds of sources. Local is free per query
-            (electricity only) after the one-time model download.
+            <strong>你会入库很多内容。</strong>如果你要给知识库喂进数百份来源，
+            按 token 计费的成本会累积起来。本地在模型一次性下载完成后按查询计费为零
+            （只花电费）。
           </li>
           <li>
-            <strong>You want offline capability.</strong> Once a model is pulled,
-            Ollama works without internet. Useful on flights, in secure
-            environments, or when your connection is flaky.
+            <strong>你需要离线能力。</strong>模型拉取完成后，
+            Ollama 无需联网即可工作。适用于航班上、安全环境中，或网络不稳时。
           </li>
           <li>
-            <strong>You're experimenting.</strong> Try different model sizes,
-            compare output styles, learn how LLMs actually behave — all without
-            burning API credits.
+            <strong>你在做实验。</strong>尝试不同的模型规模、
+            对比输出风格、了解 LLM 实际的行为方式 —— 全程不消耗 API 额度。
           </li>
         </ul>
         <p>
-          You probably want OpenRouter (cloud) if:
+          如果符合以下情况，你大概会想用 OpenRouter（云端）：
         </p>
         <ul className="space-y-1">
           <li>
-            <strong>Quality matters most</strong> — frontier models (Claude 4.6,
-            GPT-4o, Gemini 2.5 Pro) are still substantially smarter than the
-            best open models you can run locally.
+            <strong>质量最重要</strong> —— 前沿模型（Claude 4.6、
+            GPT-4o、Gemini 2.5 Pro）仍然明显比你能在本地运行的最好的
+            开源模型更聪明。
           </li>
           <li>
-            <strong>Your hardware is modest.</strong> A 5-year-old laptop with
-            8 GB RAM can run small local models, but slowly and badly. Cloud is
-            always fast.
+            <strong>你的硬件比较一般。</strong>一台 5 年前、8 GB 内存的笔记本
+            能跑小模型，但又慢又差。云端总是很快。
           </li>
           <li>
-            <strong>You only need it occasionally.</strong> $5 of OpenRouter
-            credit can last weeks at default models. Below that threshold, the
-            mental cost of managing a local model is more than the dollar cost
-            of the cloud one.
+            <strong>你只是偶尔需要它。</strong>5 美元的 OpenRouter
+            额度用默认模型可以撑好几周。低于这个门槛时，
+            管理本地模型的心力成本高于云端模型的美元成本。
           </li>
         </ul>
         <p>
-          <strong>Mixed usage works fine.</strong> You can set Ingest to Ollama
-          (heavy, you-don't-want-to-watch-it) and Chat to OpenRouter (interactive,
-          want frontier quality). LLM Wiki picks per-slot.
+          <strong>混用完全没问题。</strong>你可以把入库设为 Ollama
+          （重、你不想盯着看）而把对话设为 OpenRouter（交互式、
+          想要前沿质量）。LLM Wiki 按槽位选择。
         </p>
       </Section>
 
-      <Section id="install" eyebrow="Step 1" title="Install Ollama">
+      <Section id="install" eyebrow="第 1 步" title="安装 Ollama">
         <p>
-          One-time install. Pick your OS:
+          一次性安装。选择你的操作系统：
         </p>
 
         <h3 className="mt-6 font-display text-h3 font-semibold tracking-tight">macOS</h3>
@@ -116,8 +110,8 @@ brew install ollama
 # Or download the .dmg installer from https://ollama.com/download`}
         </pre>
         <p className="mt-2 text-caption text-muted-foreground">
-          Apple Silicon (M1+) gets GPU acceleration out of the box. Intel Macs
-          work but slower.
+          Apple Silicon（M1 及以上）开箱即得 GPU 加速。Intel Mac
+          也能用，但更慢。
         </p>
 
         <h3 className="mt-6 font-display text-h3 font-semibold tracking-tight">Linux</h3>
@@ -125,21 +119,21 @@ brew install ollama
 {`curl -fsSL https://ollama.com/install.sh | sh`}
         </pre>
         <p className="mt-2 text-caption text-muted-foreground">
-          NVIDIA GPUs auto-detected via CUDA. AMD has limited support — see{" "}
+          NVIDIA GPU 会通过 CUDA 自动检测。AMD 支持有限 —— 见{" "}
           <a
             href="https://github.com/ollama/ollama/blob/main/docs/gpu.md"
             target="_blank"
             rel="noreferrer"
             className="text-primary underline underline-offset-2"
           >
-            Ollama GPU docs
+            Ollama GPU 文档
           </a>
-          .
+          。
         </p>
 
         <h3 className="mt-6 font-display text-h3 font-semibold tracking-tight">Windows</h3>
         <p>
-          Download the installer from{" "}
+          从{" "}
           <a
             href="https://ollama.com/download"
             target="_blank"
@@ -148,24 +142,24 @@ brew install ollama
           >
             ollama.com/download
           </a>
-          . Runs natively on Windows 10/11; works inside WSL too if you prefer.
+          下载安装程序。在 Windows 10/11 上原生运行；如果你愿意，也可在 WSL 中运行。
         </p>
 
-        <h3 className="mt-6 font-display text-h3 font-semibold tracking-tight">Verify it's running</h3>
+        <h3 className="mt-6 font-display text-h3 font-semibold tracking-tight">验证它正在运行</h3>
         <pre className="overflow-x-auto rounded-md border border-border/70 bg-card p-3 text-[12px]">
 {`curl http://localhost:11434/api/version`}
         </pre>
         <p>
-          Should print something like <code>{`{"version":"0.x.x"}`}</code>. If
-          you get <em>connection refused</em>, run <code>ollama serve</code> in a
-          terminal to start the service manually.
+          应该会打印类似 <code>{`{"version":"0.x.x"}`}</code> 的内容。如果
+          得到<em>连接被拒绝</em>，请在终端运行 <code>ollama serve</code>{" "}
+          手动启动服务。
         </p>
       </Section>
 
-      <Section id="pull" eyebrow="Step 2" title="Pull a model">
+      <Section id="pull" eyebrow="第 2 步" title="拉取一个模型">
         <p>
-          Models aren't included with Ollama itself — you download each one once
-          and they're cached locally. From a terminal:
+          模型并不随 Ollama 本身一起提供 —— 每个模型你下载一次，
+          之后会缓存在本地。在终端中：
         </p>
         <pre className="overflow-x-auto rounded-md border border-border/70 bg-card p-3 text-[12px]">
 {`# General-purpose, fast, good default
@@ -180,39 +174,39 @@ ollama pull llava
 # Full library: https://ollama.com/library`}
         </pre>
         <p>
-          Download size + speed depends on your connection — count on 1-2 minutes
-          for a 4-5 GB model on broadband. Models persist in{" "}
-          <code className="font-mono">~/.ollama/models/</code> and you only need
-          to pull each one once.
+          下载大小和速度取决于你的网络 —— 在宽带上一个 4-5 GB 的模型预计需要 1-2 分钟。
+          模型持久保存在{" "}
+          <code className="font-mono">~/.ollama/models/</code>，每个只需
+          拉取一次。
         </p>
         <p>
-          To see what you've pulled: <code>ollama list</code>. To remove one:{" "}
-          <code>ollama rm &lt;name&gt;</code>.
+          查看已拉取的模型：<code>ollama list</code>。删除某个模型：
+          <code>ollama rm &lt;name&gt;</code>。
         </p>
       </Section>
 
-      <Section id="hardware" eyebrow="Picking right" title="Hardware requirements per model">
+      <Section id="hardware" eyebrow="如何选择" title="各模型的硬件要求">
         <p>
-          The single biggest factor in whether a local model is useful or painful
-          is whether your hardware can run it comfortably. Numbers below assume{" "}
-          <strong>4-bit quantized</strong> versions (Ollama's default — half the
-          memory of full precision, near-identical quality for most use cases).
+          决定本地模型是好用还是难受的唯一最大因素，
+          就是你的硬件能否舒适地运行它。下面的数字假设使用{" "}
+          <strong>4 位量化</strong>版本（Ollama 的默认设置 —— 内存占用是完整精度的一半，
+          在大多数使用场景下质量几乎相同）。
         </p>
         <p>
-          <strong>Speed numbers</strong> are tokens/sec on the listed hardware,
-          rough order-of-magnitude. Real-world varies ±50%.
+          <strong>速度数字</strong>是在所列硬件上的 token/秒，
+          大致量级。实际情况会有 ±50% 的波动。
         </p>
 
         <div className="overflow-x-auto">
           <table className="my-6 w-full min-w-[700px] border-collapse text-ui">
             <thead>
               <tr className="border-b-2 border-border text-left">
-                <th className="py-2 pr-4 font-display font-semibold">Model</th>
-                <th className="py-2 pr-4 font-display font-semibold">Disk</th>
-                <th className="py-2 pr-4 font-display font-semibold">RAM (min / good)</th>
+                <th className="py-2 pr-4 font-display font-semibold">模型</th>
+                <th className="py-2 pr-4 font-display font-semibold">磁盘</th>
+                <th className="py-2 pr-4 font-display font-semibold">内存（最低 / 推荐）</th>
                 <th className="py-2 pr-4 font-display font-semibold">M3 Mac</th>
-                <th className="py-2 pr-4 font-display font-semibold">Modern CPU only</th>
-                <th className="py-2 font-display font-semibold">Best for</th>
+                <th className="py-2 pr-4 font-display font-semibold">仅现代 CPU</th>
+                <th className="py-2 font-display font-semibold">最适合</th>
               </tr>
             </thead>
             <tbody className="text-[13px]">
@@ -230,77 +224,76 @@ ollama pull llava
           </table>
         </div>
 
-        <h3 className="mt-6 font-display text-h3 font-semibold tracking-tight">Quick picker</h3>
+        <h3 className="mt-6 font-display text-h3 font-semibold tracking-tight">快速选择</h3>
         <ul className="space-y-2">
           <li>
-            <strong>Most modern laptop (8-16 GB RAM)</strong> → <code>llama3</code> or <code>mistral</code>. Reliable, balanced.
+            <strong>大多数现代笔记本（8-16 GB 内存）</strong> → <code>llama3</code> 或 <code>mistral</code>。可靠、均衡。
           </li>
           <li>
-            <strong>Old / underpowered machine (≤8 GB RAM)</strong> → <code>phi3</code>. Still usable. Output quality drops.
+            <strong>老旧 / 性能不足的机器（≤8 GB 内存）</strong> → <code>phi3</code>。仍可用，但输出质量下降。
           </li>
           <li>
-            <strong>Apple Silicon 16-32 GB</strong> → <code>llama3</code> for general, <code>phi3:medium</code> when you want more quality and don't mind slower.
+            <strong>Apple Silicon 16-32 GB</strong> → 通用选 <code>llama3</code>，想要更高质量且不介意更慢时选 <code>phi3:medium</code>。
           </li>
           <li>
-            <strong>Apple Silicon 64+ GB unified, or workstation with 64+ GB RAM</strong> → <code>llama3:70b</code> or <code>mixtral</code>. Real frontier-ish quality, fully local.
+            <strong>Apple Silicon 64+ GB 统一内存，或 64+ GB 内存的工作站</strong> → <code>llama3:70b</code> 或 <code>mixtral</code>。接近前沿的质量，完全本地。
           </li>
           <li>
-            <strong>Need vision (PDFs, images)</strong> → <code>llava</code> for quality, <code>moondream</code> for speed.
+            <strong>需要视觉（PDF、图片）</strong> → 重质量选 <code>llava</code>，重速度选 <code>moondream</code>。
           </li>
         </ul>
 
         <p className="mt-6">
-          <strong>Rule of thumb on RAM</strong>: the model needs roughly its
-          file-size in RAM, plus 2-4 GB for the OS, plus context window overhead.
-          Running a model that's bigger than your free RAM will use swap, which
-          drops speeds by 10-50x and is usually painful enough to be unusable.
+          <strong>关于内存的经验法则</strong>：模型大致需要与其文件大小相当的内存，
+          外加 2-4 GB 给操作系统，再加上上下文窗口的开销。
+          运行一个比你空闲内存还大的模型会使用交换分区，速度会下降 10-50 倍，
+          通常慢到无法使用。
         </p>
       </Section>
 
-      <Section id="connect" eyebrow="Step 3" title="Connect it to LLM Wiki">
+      <Section id="connect" eyebrow="第 3 步" title="把它接到 LLM Wiki 上">
         <p>
-          With Ollama running and at least one model pulled:
+          Ollama 正在运行且至少拉取了一个模型之后：
         </p>
         <ol className="ml-5 list-decimal space-y-2">
           <li>
-            Open{" "}
+            打开{" "}
             <Link href="/settings" className="text-primary underline underline-offset-2">
-              Settings → Models
+              设置 → 模型
             </Link>
           </li>
           <li>
-            For any operation slot (ingest / query / chat / lint / vision):
-            change the <strong>Provider</strong> dropdown from{" "}
-            <em>OpenRouter</em> to <em>Ollama (Local)</em>
+            对任意操作槽位（入库 / 查询 / 对话 / 体检 / 视觉）：
+            把<strong>提供商</strong>下拉框从{" "}
+            <em>OpenRouter</em> 改为 <em>Ollama（本地）</em>
           </li>
           <li>
-            Pick a model from the dropdown — only pick models you&apos;ve
-            actually pulled via <code>ollama pull &lt;name&gt;</code>
+            从下拉框中选择模型 —— 只选你确实用{" "}
+            <code>ollama pull &lt;name&gt;</code> 拉取过的模型
           </li>
           <li>
-            Click <strong>Save</strong>. New operations on that slot route to
-            Ollama immediately.
+            点击<strong>保存</strong>。该槽位之后的新操作会立即路由到
+            Ollama。
           </li>
         </ol>
         <p>
-          You can mix providers per slot. A common pattern: Ingest on Ollama
-          (slow but free, good for batch work), Chat on OpenRouter (fast and
-          smart for interactive use), Vision on whichever has the better vision
-          model for your case.
+          你可以按槽位混用提供商。常见做法：入库用 Ollama
+          （慢但免费，适合批量作业），对话用 OpenRouter（交互时又快又
+          聪明），视觉用在你场景下视觉模型更好的那一个。
         </p>
         <p>
-          <strong>If you set ALL slots to Ollama</strong>, you don&apos;t need an
-          OpenRouter API key at all. The first-run wizard&apos;s key step
-          becomes optional once at least one slot is Ollama.
+          <strong>如果你把所有槽位都设为 Ollama</strong>，就完全不需要
+          OpenRouter API 密钥了。只要至少有一个槽位是 Ollama，首次运行引导中的密钥步骤
+          就变为可选。
         </p>
       </Section>
 
-      <Section id="custom-url" eyebrow="Advanced" title="Pointing at a non-default Ollama URL">
+      <Section id="custom-url" eyebrow="进阶" title="指向非默认的 Ollama URL">
         <p>
-          Ollama runs on <code>http://localhost:11434</code> by default. If
-          yours runs elsewhere (different port, on another machine via tunnel,
-          inside a Docker network), set the <code>OLLAMA_BASE_URL</code>{" "}
-          environment variable before starting LLM Wiki:
+          Ollama 默认运行在 <code>http://localhost:11434</code>。如果
+          你的实例运行在别处（不同端口、通过隧道运行在另一台机器上、
+          在 Docker 网络内），请在启动 LLM Wiki 之前设置 <code>OLLAMA_BASE_URL</code>{" "}
+          环境变量：
         </p>
         <pre className="overflow-x-auto rounded-md border border-border/70 bg-card p-3 text-[12px]">
 {`# Example: Ollama running on a different port
@@ -316,41 +309,41 @@ export OLLAMA_BASE_URL=https://my-tunnel.example.com
 llm-wiki start`}
         </pre>
         <p>
-          LLM Wiki appends <code>/v1</code> to whatever you set, matching
-          Ollama&apos;s OpenAI-compatible API. No need to include it yourself.
+          LLM Wiki 会把你设置的地址后追加 <code>/v1</code>，以匹配
+          Ollama 的 OpenAI 兼容 API。你不需要自己加上。
         </p>
       </Section>
 
-      <Section id="troubleshooting" eyebrow="When it doesn't work" title="Troubleshooting">
+      <Section id="troubleshooting" eyebrow="当它不工作时" title="疑难排查">
         <ul className="space-y-3">
           <Trouble
-            symptom={<>&ldquo;Connection error&rdquo; when running an operation</>}
-            fix={<>Ollama isn&apos;t running. Try <code>curl http://localhost:11434/api/version</code> — if it fails, run <code>ollama serve</code> in a terminal.</>}
+            symptom={<>运行操作时出现&ldquo;Connection error&rdquo;</>}
+            fix={<>Ollama 没有在运行。试试 <code>curl http://localhost:11434/api/version</code> —— 如果失败，请在终端运行 <code>ollama serve</code>。</>}
           />
           <Trouble
-            symptom={<>&ldquo;Model not found&rdquo; or 404 from Ollama</>}
-            fix={<>You picked a model in Settings that you haven&apos;t pulled. Run <code>ollama list</code> to see what&apos;s available; <code>ollama pull &lt;name&gt;</code> to add one.</>}
+            symptom={<>Ollama 返回&ldquo;Model not found&rdquo;或 404</>}
+            fix={<>你在设置里选的模型还没有拉取。运行 <code>ollama list</code> 查看已有模型；用 <code>ollama pull &lt;name&gt;</code> 添加一个。</>}
           />
           <Trouble
-            symptom="Responses are very slow (under 5 tokens/sec, painful to read)"
-            fix="Your hardware is below the model's comfortable range. Try a smaller model (phi3 instead of mistral, mistral instead of mixtral). Or accept that batch operations (ingest, lint) work fine and only chat is painful — and use OpenRouter for chat."
+            symptom="响应非常慢（低于 5 token/秒，读起来很难受）"
+            fix="你的硬件低于该模型的舒适运行区间。试试更小的模型（用 phi3 而不是 mistral，用 mistral 而不是 mixtral）。或者接受批量操作（入库、体检）可以正常跑、只有对话难受这一现实 —— 对话改用 OpenRouter。"
           />
           <Trouble
-            symptom="Out of memory / system swap-thrashing during operations"
-            fix="Same as slow: pick a smaller model. Or close other apps to free RAM. As a hard rule, the model's file size + 4 GB should comfortably fit in your free RAM."
+            symptom="操作过程中内存不足 / 系统疯狂使用交换分区"
+            fix="和慢的解决办法一样：选更小的模型。或者关掉其他应用腾出内存。作为一条硬性规则，模型文件大小 + 4 GB 应能舒适地放进你的空闲内存。"
           />
           <Trouble
-            symptom="GPU isn't being used (CPU pegged, GPU idle)"
-            fix={<>NVIDIA: check <code>nvidia-smi</code> while a query runs. AMD: support is incomplete. Apple Silicon: GPU is always used, no toggle. See <a href="https://github.com/ollama/ollama/blob/main/docs/gpu.md" target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">Ollama GPU docs</a>.</>}
+            symptom="GPU 没有被使用（CPU 满载，GPU 空闲）"
+            fix={<>NVIDIA：在查询运行时检查 <code>nvidia-smi</code>。AMD：支持不完整。Apple Silicon：始终使用 GPU，没有开关。见 <a href="https://github.com/ollama/ollama/blob/main/docs/gpu.md" target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">Ollama GPU 文档</a>。</>}
           />
           <Trouble
-            symptom={<>&ldquo;OpenRouter API key not configured&rdquo; even though only some slots use OpenRouter</>}
-            fix="At least one slot is still set to OpenRouter and needs the key. Either set ALL slots to Ollama, or add an OpenRouter key in Settings → API."
+            symptom={<>即使只有部分槽位使用 OpenRouter，仍提示&ldquo;OpenRouter API key not configured&rdquo;</>}
+            fix="至少还有一个槽位设为了 OpenRouter，需要密钥。要么把所有槽位都设为 Ollama，要么在 设置 → API 中添加 OpenRouter 密钥。"
           />
         </ul>
       </Section>
 
-      <Section id="more" eyebrow="Going further" title="Resources">
+      <Section id="more" eyebrow="进一步了解" title="参考资料">
         <ul className="space-y-1">
           <li>
             <a
@@ -361,7 +354,7 @@ llm-wiki start`}
             >
               ollama.com/library
             </a>{" "}
-            — full list of available models with sizes + benchmarks
+            —— 可用模型的完整列表，含大小 + 基准测试
           </li>
           <li>
             <a
@@ -372,7 +365,7 @@ llm-wiki start`}
             >
               github.com/ollama/ollama
             </a>{" "}
-            — source code + issue tracker
+            —— 源代码 + 问题追踪
           </li>
           <li>
             <a
@@ -381,9 +374,9 @@ llm-wiki start`}
               rel="noreferrer"
               className="text-primary underline underline-offset-2"
             >
-              GPU compatibility docs
+              GPU 兼容性文档
             </a>{" "}
-            — what works on what
+            —— 什么能在什么上跑
           </li>
           <li>
             <a
@@ -392,9 +385,9 @@ llm-wiki start`}
               rel="noreferrer"
               className="text-primary underline underline-offset-2"
             >
-              Chatbot Arena Leaderboard
+              Chatbot Arena 排行榜
             </a>{" "}
-            — independent quality rankings of LLMs (open + closed)
+            —— 独立的 LLM 质量排名（开源 + 闭源）
           </li>
         </ul>
       </Section>
@@ -404,13 +397,13 @@ llm-wiki start`}
           href="/settings"
           className="rounded-md border border-border bg-card px-4 py-2 text-ui hover:border-primary/40 hover:bg-accent/40"
         >
-          ← Back to Settings
+          ← 返回设置
         </Link>
         <Link
           href="/help"
           className="rounded-md border border-border bg-card px-4 py-2 text-ui hover:border-primary/40 hover:bg-accent/40"
         >
-          Read the Help guide →
+          阅读帮助指南 →
         </Link>
       </div>
     </PageContainer>
@@ -457,14 +450,14 @@ function Trouble({
 // ─── content ──────────────────────────────────────────────────────────────
 
 const TOC: Array<{ id: string; label: string }> = [
-  { id: "why", label: "Local vs cloud — when each makes sense" },
-  { id: "install", label: "Step 1: Install Ollama" },
-  { id: "pull", label: "Step 2: Pull a model" },
-  { id: "hardware", label: "Hardware requirements per model" },
-  { id: "connect", label: "Step 3: Connect it to LLM Wiki" },
-  { id: "custom-url", label: "Pointing at a non-default Ollama URL" },
-  { id: "troubleshooting", label: "Troubleshooting" },
-  { id: "more", label: "Resources" },
+  { id: "why", label: "本地与云端 —— 各自适合什么情况" },
+  { id: "install", label: "第 1 步：安装 Ollama" },
+  { id: "pull", label: "第 2 步：拉取模型" },
+  { id: "hardware", label: "各模型的硬件要求" },
+  { id: "connect", label: "第 3 步：把它接到 LLM Wiki 上" },
+  { id: "custom-url", label: "指向非默认的 Ollama URL" },
+  { id: "troubleshooting", label: "疑难排查" },
+  { id: "more", label: "参考资料" },
 ];
 
 // Rough order-of-magnitude numbers. 4-bit quantized variants (Ollama default).
@@ -476,7 +469,7 @@ const HARDWARE_TABLE = [
     ram: "8 / 8 GB",
     mac: "50+ t/s",
     cpu: "15-25 t/s",
-    useFor: "Lightweight chat, fast ingest",
+    useFor: "轻量对话、快速入库",
   },
   {
     model: "moondream",
@@ -484,7 +477,7 @@ const HARDWARE_TABLE = [
     ram: "4 / 8 GB",
     mac: "80+ t/s",
     cpu: "20-30 t/s",
-    useFor: "Fast vision, lower quality",
+    useFor: "快速视觉，质量较低",
   },
   {
     model: "llama3",
@@ -492,7 +485,7 @@ const HARDWARE_TABLE = [
     ram: "8 / 16 GB",
     mac: "30-40 t/s",
     cpu: "8-12 t/s",
-    useFor: "General-purpose default",
+    useFor: "通用默认选择",
   },
   {
     model: "mistral",
@@ -500,7 +493,7 @@ const HARDWARE_TABLE = [
     ram: "8 / 16 GB",
     mac: "30-40 t/s",
     cpu: "8-15 t/s",
-    useFor: "Concise output, good at code",
+    useFor: "输出简洁，擅长代码",
   },
   {
     model: "gemma2",
@@ -508,7 +501,7 @@ const HARDWARE_TABLE = [
     ram: "16 / 16 GB",
     mac: "25-35 t/s",
     cpu: "5-10 t/s",
-    useFor: "Strong reasoning",
+    useFor: "推理能力强",
   },
   {
     model: "llava",
@@ -516,7 +509,7 @@ const HARDWARE_TABLE = [
     ram: "8 / 16 GB",
     mac: "25-35 t/s",
     cpu: "5-10 t/s",
-    useFor: "Vision (PDFs/images)",
+    useFor: "视觉（PDF/图片）",
   },
   {
     model: "phi3:medium",
@@ -524,22 +517,22 @@ const HARDWARE_TABLE = [
     ram: "16 / 16 GB",
     mac: "20-30 t/s",
     cpu: "4-8 t/s",
-    useFor: "Better quality, slower",
+    useFor: "质量更好，速度更慢",
   },
   {
     model: "mixtral",
     disk: "26 GB",
     ram: "32 / 48 GB",
     mac: "15-25 t/s",
-    cpu: "unusable",
-    useFor: "Best open mid-sized model",
+    cpu: "无法使用",
+    useFor: "最好的中量级开源模型",
   },
   {
     model: "llama3:70b",
     disk: "40 GB",
     ram: "48 / 64 GB",
     mac: "5-15 t/s",
-    cpu: "unusable",
-    useFor: "Highest quality open, needs serious hardware",
+    cpu: "无法使用",
+    useFor: "开源中质量最高，需要强劲硬件",
   },
 ];

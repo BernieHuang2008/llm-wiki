@@ -35,13 +35,13 @@ const fontMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "LLM Wiki",
-  description: "Local-first knowledge base maintained by an LLM agent.",
+  description: "由 LLM 智能体维护的本地优先知识库。",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
-      lang="en"
+      lang="zh-CN"
       suppressHydrationWarning
       className={`${fontSans.variable} ${fontSerif.variable} ${fontDisplay.variable} ${fontMono.variable}`}
     >

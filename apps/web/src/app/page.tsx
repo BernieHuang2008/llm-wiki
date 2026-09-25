@@ -75,15 +75,15 @@ export default async function HomePage({
     <div className="mx-auto w-full max-w-5xl px-6 pb-16 pt-12">
       <header className="mb-10">
         <p className="text-caption uppercase tracking-wider text-muted-foreground">
-          {isFresh ? "Welcome" : "Your wiki"}
+          {isFresh ? "欢迎" : "你的知识库"}
         </p>
         <h1 className="mt-2 font-display text-display font-semibold">
-          {isFresh ? "Build a wiki the LLM maintains for you." : "LLM Wiki"}
+          {isFresh ? "构建一个由 LLM 为你维护的知识库。" : "LLM Wiki"}
         </h1>
         <p className="mt-3 max-w-2xl text-body text-muted-foreground">
           {isFresh
-            ? "Drop in articles, papers, notes, or URLs. The agent compiles them into a persistent, cross-linked markdown wiki you fully own. Knowledge compounds."
-            : "Local-first knowledge base maintained by an LLM agent."}
+            ? "放入文章、论文、笔记或 URL。智能体会把它们编译成一个持久的、互相链接的 markdown 知识库，完全归你所有。知识会不断累积。"
+            : "由 LLM 智能体维护的本地优先知识库。"}
         </p>
         <p className="mt-2 font-mono text-caption text-muted-foreground">
           {wikiPath}
@@ -91,77 +91,77 @@ export default async function HomePage({
       </header>
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatTile label="Pages" value={pageCount.toString()} href="/wiki" />
-        <StatTile label="Sources" value={sourceCount.toString()} href="/sources" />
-        <StatTile label="Chats" value={chatCount.toString()} href="/chats" />
+        <StatTile label="页面" value={pageCount.toString()} href="/wiki" />
+        <StatTile label="来源" value={sourceCount.toString()} href="/sources" />
+        <StatTile label="对话" value={chatCount.toString()} href="/chats" />
         {/* LLM spend tile points at /dashboard, not /settings — dashboard
             shows this wiki's spend in context with every other wiki's, plus
             a cumulative roll-up. Settings → Models still has the per-model
             breakdown table for a deeper view. */}
-        <StatTile label="LLM spend" value={formatCost(costCents)} href="/dashboard" />
+        <StatTile label="LLM 花费" value={formatCost(costCents)} href="/dashboard" />
       </section>
       <p className="mt-2 text-right text-caption text-muted-foreground">
         <Link
           href="/dashboard"
           className="hover:text-foreground"
-          title="Stats across every wiki you've opened"
+          title="你打开过的所有知识库的统计"
         >
-          ↗ See all wikis
+          ↗ 查看所有知识库
         </Link>
       </p>
 
       <section className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <ActionCard
           tone="primary"
-          title={isFresh ? "Add your first source" : "Ingest a source"}
-          body="Paste an article, drop a PDF, or pull a URL. The agent reads it, writes pages, and cross-links."
-          cta="Open Sources →"
+          title={isFresh ? "添加你的第一个来源" : "入库一份来源"}
+          body="粘贴一篇文章、拖入 PDF，或抓取一个 URL。智能体会阅读它、撰写页面并建立交叉链接。"
+          cta="打开来源页 →"
           href="/sources"
         />
         <ActionCard
-          title="Query the wiki"
-          body="One-off Q&A with citations. Promote good answers into permanent pages."
-          cta="Open Query →"
+          title="查询知识库"
+          body="带引用的单次问答。把好的回答沉淀为持久页面。"
+          cta="打开查询页 →"
           href="/query"
         />
         <ActionCard
-          title="Browse the wiki"
+          title="浏览知识库"
           body={
             pageCount === 0
-              ? "Empty for now. Add a source to start filling it in."
-              : `${pageCount} page${pageCount === 1 ? "" : "s"} across concepts, entities, and overviews.`
+              ? "目前还是空的。添加一份来源，开始把它填起来。"
+              : `${pageCount} 个页面，涵盖概念、实体和总览。`
           }
-          cta={pageCount === 0 ? "Add a source first →" : "Open Wiki →"}
+          cta={pageCount === 0 ? "先添加一份来源 →" : "打开知识库 →"}
           href={pageCount === 0 ? "/sources" : "/wiki"}
         />
         <ActionCard
-          title="Lint the wiki"
+          title="体检知识库"
           body={
             pageCount === 0
-              ? "Nothing to check yet. Ingest sources first."
-              : "Scan for contradictions, broken links, orphans, and gaps. Quick-fixes inline."
+              ? "还没有可检查的内容。请先入库来源。"
+              : "扫描矛盾、失效链接、孤岛页面和内容缺口。可直接就地快速修复。"
           }
-          cta={pageCount === 0 ? "Add a source first →" : "Open Lint →"}
+          cta={pageCount === 0 ? "先添加一份来源 →" : "打开体检 →"}
           href={pageCount === 0 ? "/sources" : "/lint"}
         />
       </section>
 
       <section className="mt-10 grid grid-cols-1 gap-3 md:grid-cols-2">
         <MetaCard
-          title="How it works"
+          title="它是如何工作的"
           items={[
-            "Three layers on disk: raw sources, LLM-maintained wiki, your CLAUDE.md schema.",
-            "Three operations: ingest, query, lint. All run against your folder.",
-            "Everything is a markdown file — git it, sync it with iCloud, edit in Obsidian.",
+            "磁盘上有三个层次：原始来源、由 LLM 维护的知识库、你的 CLAUDE.md schema。",
+            "三项操作：入库、查询、体检。全部针对你的文件夹运行。",
+            "一切都只是 markdown 文件 —— 用 git 管理它，用 iCloud 同步它，在 Obsidian 中编辑它。",
           ]}
         />
         <MetaCard
-          title="Keyboard"
+          title="快捷键"
           items={[
-            { kbd: "⌘K", text: "Command palette — jump anywhere" },
-            { kbd: "⌘,", text: "Settings" },
-            { kbd: "⌘↵", text: "Submit (in form / chat composer)" },
-            { kbd: "esc", text: "Close dialog" },
+            { kbd: "⌘K", text: "命令面板 —— 跳转到任何地方" },
+            { kbd: "⌘,", text: "设置" },
+            { kbd: "⌘↵", text: "提交（表单 / 对话输入框中）" },
+            { kbd: "esc", text: "关闭对话框" },
           ]}
         />
       </section>

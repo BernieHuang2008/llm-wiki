@@ -10,6 +10,16 @@ import { MarkdownView } from "@/components/wiki/markdown-view";
 
 const PAGE_TYPES = ["entity", "concept", "source", "comparison", "overview"] as const;
 
+// Display labels for the stored page-type values. The <option> value stays the
+// English type key; only the visible label is localized.
+const TYPE_LABEL: Record<(typeof PAGE_TYPES)[number], string> = {
+  entity: "实体",
+  concept: "概念",
+  source: "来源",
+  comparison: "对比",
+  overview: "概览",
+};
+
 type Props = {
   slug: string;
   initialTitle: string;
@@ -66,7 +76,7 @@ export function PageEditor({
         <Input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Title"
+          placeholder="标题"
           className="flex-1"
         />
         <select
@@ -76,7 +86,7 @@ export function PageEditor({
         >
           {PAGE_TYPES.map((t) => (
             <option key={t} value={t}>
-              {t}
+              {TYPE_LABEL[t]}
             </option>
           ))}
         </select>
@@ -98,7 +108,7 @@ export function PageEditor({
         </div>
         <div className="flex flex-col">
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Preview
+            预览
           </h3>
           <div className="min-h-[calc(100vh-22rem)] flex-1 overflow-y-auto rounded-md border border-border/70 bg-card p-5">
             <MarkdownView content={content} knownSlugs={knownSlugs} />
@@ -114,10 +124,10 @@ export function PageEditor({
 
       <div className="flex gap-2">
         <Button onClick={onSave} disabled={saving}>
-          {saving ? "Saving…" : "Save"}
+          {saving ? "保存中…" : "保存"}
         </Button>
         <Button variant="outline" onClick={onCancel} disabled={saving}>
-          Cancel
+          取消
         </Button>
       </div>
     </div>
