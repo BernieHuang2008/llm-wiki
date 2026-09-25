@@ -1,6 +1,11 @@
 "use client";
 
-import { estimateCost, formatCostCents, formatTokens } from "@/lib/cost-estimate";
+import {
+  estimateCost,
+  formatCostCents,
+  formatTokens,
+  getDeepSeekCnyPricing,
+} from "@/lib/cost-estimate";
 
 type Props = {
   text: string;
@@ -20,6 +25,7 @@ export function CostPreview({ text, model, contextOverhead, expectedOutputTokens
     );
   }
   const est = estimateCost(text, model, contextOverhead, expectedOutputTokens);
+  const cny = getDeepSeekCnyPricing(model);
   return (
     <p className="text-xs text-muted-foreground">
       预计：{" "}
@@ -30,6 +36,14 @@ export function CostPreview({ text, model, contextOverhead, expectedOutputTokens
       · <code>{est.model}</code>
       {est.unknownPricing ? (
         <span className="ml-1 italic">该模型的价格未知</span>
+      ) : null}
+      {/* DeepSeek publishes CNY rates that halve outside Beijing peak hours;
+          showing them verbatim avoids an unexplained exchange-rate gap. */}
+      {cny ? (
+        <span className="ml-1">
+          · 官方价：输入 ¥{cny.peak.input}/¥{cny.offPeak.input}、输出 ¥{cny.peak.output}/
+          {cny.offPeak.output} 每百万令牌（高峰/空闲，按 ¥7.2≈$1 折算）
+        </span>
       ) : null}
     </p>
   );

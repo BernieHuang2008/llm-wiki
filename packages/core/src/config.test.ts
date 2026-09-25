@@ -6,11 +6,14 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   addRecentWiki,
+  clampIngestConcurrency,
   DEFAULT_GLOBAL_CONFIG,
   DEFAULT_WIKI_SETTINGS,
   globalConfigPath,
   loadGlobalConfig,
   loadWikiSettings,
+  MAX_INGEST_CONCURRENCY,
+  MIN_INGEST_CONCURRENCY,
   removeRecentWiki,
   saveGlobalConfig,
   saveWikiSettings,
@@ -235,5 +238,37 @@ describe("wiki settings", () => {
     });
     const content = await readFile(wikiSettingsPath(wikiPath), "utf8");
     expect(content).toContain('"topic": "X"');
+  });
+});
+
+describe("clampIngestConcurrency", () => {
+  it("clamps into the supported range", () => {
+    expect(clampIngestConcurrency(0)).toBe(MIN_INGEST_CONCURRENCY);
+    expect(clampIngestConcurrency(-5)).toBe(1);
+    expect(clampIngestConcurrency(3)).toBe(3);
+    expect(clampIngestConcurrency(999)).toBe(MAX_INGEST_CONCURRENCY);
+    expect(MAX_INGEST_CONCURRENCY).toBe(10);
+  });
+
+  it("floors fractions and rejects non-finite values", () => {
+    expect(clampIngestConcurrency(2.9)).toBe(2);
+    expect(clampIngestConcurrency(Number.NaN)).toBe(1);
+    expect(clampIngestConcurrency(Number.POSITIVE_INFINITY)).toBe(1);
+  });
+
+  it("defaults to serial ingest and sanitizes a hand-edited settings file", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "llm-wiki-concurrency-test-"));
+    try {
+      await writeFile(
+        wikiSettingsPath(dir),
+        JSON.stringify({ version: 1, topic: "T", ingestConcurrency: 99 }),
+        "utf8",
+      );
+      const s = await loadWikiSettings(dir);
+      expect(s.ingestConcurrency).toBe(MAX_INGEST_CONCURRENCY);
+      expect(DEFAULT_WIKI_SETTINGS.ingestConcurrency).toBe(1);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

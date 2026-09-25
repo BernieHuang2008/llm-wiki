@@ -220,7 +220,25 @@ export type WikiSettings = {
    * most users want auto-apply.
    */
   requireApprovalForIngest: boolean;
+  /**
+   * How many ingest tasks may run at the same time. Default 1 (serial), which
+   * is the safe choice: each ingest reads the index at the start, and the
+   * commit phase is a merge, so parallel updates to the same page resolve as
+   * worst-case last-write-wins. The commit itself is serialized by the wiki
+   * write lock, so a higher value costs duplicate work on overlapping pages,
+   * not a corrupted index. Raise it when importing many independent files.
+   */
+  ingestConcurrency: number;
 };
+
+/** Bounds for `ingestConcurrency`, enforced on the way in from any source. */
+export const MIN_INGEST_CONCURRENCY = 1;
+export const MAX_INGEST_CONCURRENCY = 10;
+
+export function clampIngestConcurrency(value: number): number {
+  if (!Number.isFinite(value)) return 1;
+  return Math.min(MAX_INGEST_CONCURRENCY, Math.max(MIN_INGEST_CONCURRENCY, Math.floor(value)));
+}
 
 /** Helper to build a slot config with an explicit provider. */
 function slotConfig(model: string, provider: ModelProvider = "openrouter"): ModelSlotConfig {
@@ -243,6 +261,7 @@ export const DEFAULT_WIKI_SETTINGS: WikiSettings = {
   autoLintAfterIngest: false,
   showCostEstimates: true,
   requireApprovalForIngest: false,
+  ingestConcurrency: 1,
 };
 
 export function wikiSettingsPath(wikiPath: string): string {
@@ -268,6 +287,9 @@ function parseWikiSettings(raw: unknown): WikiSettings {
   }
   if (typeof data["requireApprovalForIngest"] === "boolean") {
     out.requireApprovalForIngest = data["requireApprovalForIngest"];
+  }
+  if (typeof data["ingestConcurrency"] === "number") {
+    out.ingestConcurrency = clampIngestConcurrency(data["ingestConcurrency"]);
   }
   const models = data["defaultModels"];
   if (typeof models === "object" && models !== null) {

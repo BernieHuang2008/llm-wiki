@@ -12,6 +12,7 @@ import { callLLM, estimateCostCents, type LlmClient } from "@llm-wiki/llm";
 import type { Db } from "./db";
 import { insertUsage } from "./db-usage";
 import { applyManualEdit, createPage, type ManualEditResult } from "./editor";
+import { withWriteLock } from "./write-lock";
 import { rebuildIndexFromPages } from "./index-builder";
 import { PAGE_TYPES, type Page, type PageType } from "./types";
 import { readIndex, readPage, readSchema } from "./wiki";
@@ -90,6 +91,12 @@ function formatReferencingContext(
 }
 
 export async function createStubPage(
+  opts: CreateStubPageOptions,
+): Promise<CreateStubPageResult> {
+  return withWriteLock(opts.wikiPath, () => createStubPageUnlocked(opts));
+}
+
+async function createStubPageUnlocked(
   opts: CreateStubPageOptions,
 ): Promise<CreateStubPageResult> {
   const [schema, index] = await Promise.all([
@@ -189,6 +196,12 @@ JSON_SHAPE:
 }`;
 
 export async function applyLintSuggestedFix(
+  opts: ApplyLintFixOptions,
+): Promise<ApplyLintFixResult> {
+  return withWriteLock(opts.wikiPath, () => applyLintSuggestedFixUnlocked(opts));
+}
+
+async function applyLintSuggestedFixUnlocked(
   opts: ApplyLintFixOptions,
 ): Promise<ApplyLintFixResult> {
   const page = await readPage(opts.wikiPath, opts.pageSlug);

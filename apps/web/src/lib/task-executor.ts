@@ -17,6 +17,7 @@ import { join } from "node:path";
 import {
   applyLintSuggestedFix,
   claimNextTask,
+  clampIngestConcurrency,
   createStubPage,
   failTask,
   findBacklinks,
@@ -25,6 +26,7 @@ import {
   getSource,
   ingestSource,
   ingestVisionSource,
+  MAX_INGEST_CONCURRENCY,
   markSourceFailed,
   markSourceIngested,
   pruneFinishedTasks,
@@ -67,10 +69,17 @@ import {
 
 // ---- tuning ---------------------------------------------------------------
 
-/** Ingest is serialized: each pass reads the index the previous pass wrote. */
-const INGEST_LANES = 1;
+/**
+ * Ingest lanes. This is a *ceiling*, not the concurrency actually used: each
+ * lane re-reads `settings.ingestConcurrency` before claiming work, so lowering
+ * the setting takes effect without a restart and raising it never needs more
+ * lanes than the maximum the settings allow (10).
+ */
+const MAX_INGEST_LANES = MAX_INGEST_CONCURRENCY;
 /** Query/chat/link lanes; kept small so a local provider is not swamped. */
 const SIDE_LANES = 2;
+/** Ceiling for the non-ingest lanes, matching their lane count. */
+const SIDE_CONCURRENCY = SIDE_LANES;
 const POLL_INTERVAL_MS = 700;
 const LANE_IDLE_RETRY_MS = 1_500;
 const MAX_ATTEMPTS = 3;
@@ -115,7 +124,7 @@ export function startTaskExecutor(): void {
   if (!isNodeRuntime()) return;
   const state = (g[globalKey] ??= {
     started: false,
-    lanes: INGEST_LANES + SIDE_LANES,
+    lanes: MAX_INGEST_LANES + SIDE_LANES,
     housekeepingDone: false,
   });
   if (state.started) return;
@@ -133,19 +142,45 @@ function isNodeRuntime(): boolean {
   return typeof process !== "undefined" && !!process.versions?.node;
 }
 
-/** Number of worker lanes currently running. Diagnostics only. */
+/** Total worker lanes currently running. Diagnostics only. */
 export function taskExecutorLaneCount(): number {
-  return INGEST_LANES + SIDE_LANES;
+  return MAX_INGEST_LANES + SIDE_LANES;
 }
 
 // ---- lanes ----------------------------------------------------------------
 
+/**
+ * A lane owns a slice of the pool's concurrency budget. Ingest lanes draw from
+ * the user's `ingestConcurrency`; the rest draw from a fixed side budget.
+ *
+ * Budgets are tracked in memory per lane and reset at startup: if a worker died
+ * mid-task its slot would otherwise leak forever, and a leaked slot is a lane
+ * that stops picking up work.
+ */
+type Budget = {
+  label: string;
+  limit: () => number;
+  running: number;
+};
+
 async function runLane(lane: number): Promise<void> {
-  // Ingest lanes only take ingest work (so an ingest never runs beside another
-  // ingest rewriting index.md); the remaining lanes take everything else.
-  const kinds = lane < INGEST_LANES ? INGEST_KINDS : SIDE_KINDS;
+  const isIngestLane = lane < MAX_INGEST_LANES;
+  const kinds = isIngestLane ? INGEST_KINDS : SIDE_KINDS;
+  const budget: Budget = isIngestLane
+    ? {
+        label: "ingest",
+        // Read live so a settings change applies to the next claim.
+        limit: () => currentIngestConcurrency(),
+        running: 0,
+      }
+    : { label: "side", limit: () => SIDE_CONCURRENCY, running: 0 };
 
   for (;;) {
+    if (budget.running >= budget.limit()) {
+      await sleep(LANE_IDLE_RETRY_MS);
+      continue;
+    }
+
     let claimed: TaskRow | null = null;
     try {
       claimed = withDb((db) => {
@@ -164,9 +199,38 @@ async function runLane(lane: number): Promise<void> {
       continue;
     }
 
-    await executeTask(claimed);
+    budget.running += 1;
+    try {
+      await executeTask(claimed);
+    } finally {
+      // `executeTask` is contracted to always settle, so this always runs —
+      // a lane can never lose its slot.
+      budget.running -= 1;
+    }
     await sleep(POLL_INTERVAL_MS);
   }
+}
+
+/** Settings-cached concurrency, refreshed cheaply once per second. */
+let cachedConcurrency = 1;
+let concurrencyReadAt = 0;
+const CONCURRENCY_CACHE_MS = 1_000;
+
+function currentIngestConcurrency(): number {
+  const now = Date.now();
+  if (now - concurrencyReadAt < CONCURRENCY_CACHE_MS) return cachedConcurrency;
+  concurrencyReadAt = now;
+  try {
+    const ctx = openWikiContextSync();
+    try {
+      cachedConcurrency = clampIngestConcurrency(ctx.settings.ingestConcurrency);
+    } finally {
+      ctx.db.close();
+    }
+  } catch {
+    // Keep the last known value — a transient DB problem must not stall lanes.
+  }
+  return cachedConcurrency;
 }
 
 /** Startup sweep + retention pruning, once per process. */

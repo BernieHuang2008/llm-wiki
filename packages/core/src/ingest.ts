@@ -18,6 +18,7 @@ import { insertUsage } from "./db-usage";
 import { parseIndexEntries, renderIndex } from "./index-builder";
 import { buildIngestPrompt, type ExistingPageSnippet } from "./prompts/ingest";
 import { IngestResponseSchema, type IngestResponse } from "./schema";
+import { withWriteLock } from "./write-lock";
 import type {
   ExtractedVisionSource,
   PageRow,
@@ -488,8 +489,16 @@ export type ApplyIngestResponseOptions = {
  * index, appends to log.md, and links page→source rows. Exported so the
  * approval-gate flow can call it from a separate endpoint after the user
  * reviews + confirms a previously-returned proposal.
+ *
+ * Runs under the wiki write lock. With ingest concurrency > 1 several ingests
+ * are in flight at once, and this function is the part that touches shared
+ * state (index.md above all, which is rebuilt by merging).
  */
 export async function applyIngestResponse(opts: ApplyIngestResponseOptions): Promise<void> {
+  return withWriteLock(opts.wikiPath, () => applyIngestResponseUnlocked(opts));
+}
+
+async function applyIngestResponseUnlocked(opts: ApplyIngestResponseOptions): Promise<void> {
   const { response, wikiPath, db, sourceId } = opts;
   const today = new Date().toISOString().slice(0, 10);
   const written: string[] = [];

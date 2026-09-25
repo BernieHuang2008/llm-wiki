@@ -23,6 +23,7 @@ export * from "./prompts/query";
 export * from "./prompts/chat";
 export * from "./ingest";
 export * from "./links";
+export * from "./write-lock";
 export * from "./editor";
 export * from "./graph";
 export * from "./index-builder";

@@ -122,7 +122,13 @@ export function CostsTab() {
 
       <p className="text-xs text-muted-foreground">
         只有当本地价格表认识该模型时才会记录成本。未知模型在成本列中显示 <code>—</code>
-        ；token 数量始终是准确的。
+        ；token 数量始终是准确的。价格表是代码里写死的常量（OpenRouter 为美元，
+        DeepSeek 为官方人民币价并按 ¥7.2≈$1 折算），不联网查询。
+      </p>
+      <p className="text-xs text-muted-foreground">
+        DeepSeek 分高峰／空闲两档计费（北京时间周一至周五 9:00–12:00、14:00–18:00
+        为高峰，其余时间折半）。此表按<strong>峰值价</strong>计入，所以 DeepSeek
+        的实际花费通常低于这里显示的金额。
       </p>
     </div>
   );

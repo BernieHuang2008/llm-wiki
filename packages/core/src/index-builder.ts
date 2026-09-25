@@ -14,6 +14,7 @@ import type { Db } from "./db";
 import { getPage, listPageRows } from "./db-pages";
 import type { PageType } from "./types";
 import { readPage, WIKI_PATHS, writeIndex } from "./wiki";
+import { withWriteLock } from "./write-lock";
 
 export type IndexEntry = { category: string; summary: string };
 
@@ -133,6 +134,13 @@ export type RebuildIndexResult = {
  * change to the wiki (manual deletes, lint fixes, etc.).
  */
 export async function rebuildIndexFromPages(
+  wikiPath: string,
+  db: Db,
+): Promise<RebuildIndexResult> {
+  return withWriteLock(wikiPath, () => rebuildIndexFromPagesUnlocked(wikiPath, db));
+}
+
+async function rebuildIndexFromPagesUnlocked(
   wikiPath: string,
   db: Db,
 ): Promise<RebuildIndexResult> {

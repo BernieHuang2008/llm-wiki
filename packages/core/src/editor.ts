@@ -9,6 +9,7 @@ import {
   upsertPage,
 } from "./db-pages";
 import { upsertSyncState } from "./db-sync";
+import { withWriteLock } from "./write-lock";
 import {
   parseIndexEntries,
   refreshIndexEntryForSlug,
@@ -46,6 +47,17 @@ export type ManualEditResult = {
  * existing pages only.
  */
 export async function applyManualEdit(
+  wikiPath: string,
+  db: Db,
+  slug: string,
+  edit: ManualEditInput,
+): Promise<ManualEditResult> {
+  // Page files, index.md and log.md are shared with the ingest pipeline, so
+  // every writer serializes on the wiki write lock.
+  return withWriteLock(wikiPath, () => applyManualEditUnlocked(wikiPath, db, slug, edit));
+}
+
+async function applyManualEditUnlocked(
   wikiPath: string,
   db: Db,
   slug: string,
@@ -157,6 +169,15 @@ export async function saveSchema(
   wikiPath: string,
   content: string,
 ): Promise<SaveSchemaResult> {
+  // CLAUDE.md is read at the start of every ingest; swapping it mid-flight
+  // would let two ingests disagree about the schema.
+  return withWriteLock(wikiPath, () => saveSchemaUnlocked(wikiPath, content));
+}
+
+async function saveSchemaUnlocked(
+  wikiPath: string,
+  content: string,
+): Promise<SaveSchemaResult> {
   const schemaPath = join(wikiPath, WIKI_PATHS.schema);
   const dir = join(wikiPath, WIKI_PATHS.tooling, SCHEMA_HISTORY_DIR);
   await mkdir(dir, { recursive: true });
@@ -232,6 +253,14 @@ export class PageAlreadyExistsError extends Error {
  * callers should use applyManualEdit for that.
  */
 export async function createPage(
+  wikiPath: string,
+  db: Db,
+  input: CreatePageInput,
+): Promise<Page> {
+  return withWriteLock(wikiPath, () => createPageUnlocked(wikiPath, db, input));
+}
+
+async function createPageUnlocked(
   wikiPath: string,
   db: Db,
   input: CreatePageInput,
@@ -334,6 +363,14 @@ export async function softDeletePage(
   db: Db,
   slug: string,
 ): Promise<SoftDeletePageResult> {
+  return withWriteLock(wikiPath, () => softDeletePageUnlocked(wikiPath, db, slug));
+}
+
+async function softDeletePageUnlocked(
+  wikiPath: string,
+  db: Db,
+  slug: string,
+): Promise<SoftDeletePageResult> {
   const filePath = join(wikiPath, WIKI_PATHS.wiki, `${slug}.md`);
   if (!(await fileExists(filePath))) {
     throw new PageNotFoundError(slug);
@@ -417,6 +454,15 @@ export class PageRestoreConflictError extends Error {
  * orphan" until then; the body content is intact.
  */
 export async function restoreDeletedPage(
+  wikiPath: string,
+  db: Db,
+  slug: string,
+  trashFilename: string,
+): Promise<RestoreDeletedPageResult> {
+  return withWriteLock(wikiPath, () => restoreDeletedPageUnlocked(wikiPath, db, slug, trashFilename));
+}
+
+async function restoreDeletedPageUnlocked(
   wikiPath: string,
   db: Db,
   slug: string,

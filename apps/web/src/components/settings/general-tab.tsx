@@ -10,9 +10,12 @@ type SettingsResponse = {
   settings: {
     topic: string;
     requireApprovalForIngest?: boolean;
+    ingestConcurrency?: number;
   };
   wikiPath: string;
 };
+
+const CONCURRENCY_CHOICES = [1, 2, 3, 4, 5, 6, 8, 10] as const;
 
 export function GeneralTab() {
   const { theme, setTheme } = useTheme();
@@ -24,6 +27,8 @@ export function GeneralTab() {
   const [wikiPath, setWikiPath] = useState<string>("");
   const [requireApproval, setRequireApproval] = useState(false);
   const [approvalSaving, setApprovalSaving] = useState(false);
+  const [ingestConcurrency, setIngestConcurrency] = useState(1);
+  const [concurrencySaving, setConcurrencySaving] = useState(false);
   const [busy, setBusy] = useState(false);
   const [flash, setFlash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,11 +43,33 @@ export function GeneralTab() {
         setOriginal(data.settings.topic);
         setWikiPath(data.wikiPath);
         setRequireApproval(Boolean(data.settings.requireApprovalForIngest));
+        setIngestConcurrency(data.settings.ingestConcurrency ?? 1);
       } catch (err) {
         setError((err as Error).message);
       }
     })();
   }, []);
+
+  async function saveIngestConcurrency(next: number) {
+    setConcurrencySaving(true);
+    setError(null);
+    setFlash(null);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ingestConcurrency: next }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as SettingsResponse;
+      setIngestConcurrency(data.settings.ingestConcurrency ?? next);
+      setFlash("已保存。并发数对下一个取到的任务立即生效，无需重启。");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setConcurrencySaving(false);
+    }
+  }
 
   async function toggleRequireApproval(next: boolean) {
     setApprovalSaving(true);
@@ -150,6 +177,44 @@ llm-wiki start ~/llm-wiki-machine-learning`}
             ) : null}
           </span>
         </label>
+      </div>
+
+      <div>
+        <h2 className="text-lg font-medium">Ingest并发数</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          同时执行多少个Ingest任务。默认 1（串行），也是唯一完全安全的取值：
+          每次Ingest在开始时读取当前索引，提交时合并写回，因此并发更新
+          <em>同一个页面</em>时，后提交的会覆盖先提交的（提交阶段有写入锁保护，
+          所以索引不会损坏，代价是重复劳动）。导入一批互不相关的文件时，调高它
+          可以明显加快速度。
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <label className="text-sm" htmlFor="ingest-concurrency">
+            并发任务数
+          </label>
+          <select
+            id="ingest-concurrency"
+            value={ingestConcurrency}
+            disabled={concurrencySaving}
+            onChange={(e) => void saveIngestConcurrency(Number(e.target.value))}
+            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          >
+            {CONCURRENCY_CHOICES.map((n) => (
+              <option key={n} value={n}>
+                {n === 1 ? "1（串行，推荐）" : `${n} 个并发`}
+              </option>
+            ))}
+          </select>
+          {concurrencySaving ? (
+            <span className="text-xs text-muted-foreground">保存中…</span>
+          ) : null}
+        </div>
+        {ingestConcurrency > 1 ? (
+          <p className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+            当前为 {ingestConcurrency} 个并发。若这批文件会引用同一批概念／实体，
+            请考虑用 1，或在入库后跑一次体检检查是否有页面被覆盖。
+          </p>
+        ) : null}
       </div>
 
       <div>

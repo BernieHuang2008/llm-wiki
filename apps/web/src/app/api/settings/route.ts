@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import {
+  clampIngestConcurrency,
   DEFAULT_WIKI_SETTINGS,
   loadWikiSettings,
   saveWikiSettings,
@@ -24,6 +25,7 @@ type PutBody = Partial<{
   autoLintAfterIngest: boolean;
   showCostEstimates: boolean;
   requireApprovalForIngest: boolean;
+  ingestConcurrency: number;
 }>;
 
 export async function PUT(req: Request) {
@@ -57,6 +59,12 @@ export async function PUT(req: Request) {
       typeof body.requireApprovalForIngest === "boolean"
         ? body.requireApprovalForIngest
         : current.requireApprovalForIngest,
+    // Clamped rather than trusted: a hand-crafted request must not be able to
+    // set a concurrency the executor has no lanes for.
+    ingestConcurrency:
+      typeof body.ingestConcurrency === "number"
+        ? clampIngestConcurrency(body.ingestConcurrency)
+        : current.ingestConcurrency,
   };
   await saveWikiSettings(wikiPath, next);
   // Return both the saved settings and the model defaults for the UI's

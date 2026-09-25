@@ -128,20 +128,20 @@ export const SUGGESTED_MODELS: ReadonlyArray<ModelChoice> = [
   },
   // DeepSeek platform (api.deepseek.com). These ids are DeepSeek's own —
   // they are NOT valid on OpenRouter, which uses `deepseek/...` slugs.
-  // Model ids per DeepSeek's "首次调用 API" doc: `deepseek-flash`
-  // (DeepSeek-V4.1-Flash) and `deepseek-v4-pro` (DeepSeek-V4-Pro-0813),
-  // both with a 1M context window.
+  // Per DeepSeek's "模型细节" table: `deepseek-flash` is DeepSeek-V4.1-Flash
+  // and `deepseek-v4-pro` is DeepSeek-V4-Pro-0813, both 1M context /
+  // max 384K output. Flash understands images; Pro does not.
   {
     id: "deepseek-flash",
     label: "DeepSeek V4 Flash",
-    notes: "DeepSeek 官方 · 快而省，适合 ingest / query / lint。",
-    vision: false,
+    notes: "DeepSeek 官方 · 快而省，支持图像理解。适合 ingest / query / lint。",
+    vision: true,
     provider: "deepseek",
   },
   {
     id: "deepseek-v4-pro",
     label: "DeepSeek V4 Pro",
-    notes: "DeepSeek 官方 · 更强推理，适合 query / chat 与复杂 ingest。",
+    notes: "DeepSeek 官方 · 推理更强，不支持图像。适合 query / chat 与复杂 ingest。",
     vision: false,
     provider: "deepseek",
   },
@@ -158,6 +158,75 @@ export type ModelPricing = {
   /** USD per 1,000,000 output tokens */
   outputPerMillion: number;
 };
+
+/**
+ * DeepSeek bills in CNY and at two rates depending on the time of day, while
+ * OpenRouter bills in USD. We keep one cumulative figure for the whole app, so
+ * CNY rates are converted once here rather than mixing currencies in `usage`.
+ * The rate is a fixed constant (not a live lookup) to keep cost tracking
+ * offline; DeepSeek's own docs quote these prices in CNY, so expect a small
+ * drift from the vendor's USD-equivalent invoice.
+ */
+export const CNY_PER_USD = 7.2;
+
+export type PriceCurrency = "usd" | "cny";
+
+export function cnyToUsd(cny: number, cnyPerUsd: number = CNY_PER_USD): number {
+  return cny / cnyPerUsd;
+}
+
+export type PeakAwarePricing = {
+  peak: ModelPricing;
+  offPeak: ModelPricing;
+};
+
+/**
+ * DeepSeek's rate card, in CNY per million tokens, exactly as published.
+ *
+ * Peak hours are Beijing time (UTC+8) Monday–Friday 09:00–12:00 and
+ * 14:00–18:00, excluding Chinese public holidays; every other hour — including
+ * weekends and holidays — bills at half price. We cannot know the holiday
+ * calendar here, so a holiday weekday is treated as peak. That makes the
+ * estimate an upper bound rather than an undercount.
+ *
+ * Model names: `deepseek-flash` is the current id for DeepSeek-V4.1-Flash.
+ * `deepseek-v4-flash` and `deepseek-v4-flash-vision-exp` still resolve, but
+ * they are served by the same model and billed at Flash rates.
+ */
+export const DEEPSEEK_CNY_PRICING: Record<string, PeakAwarePricing> = {
+  // 缓存命中 0.04 / 0.02, 缓存未命中 2 / 1, 输出 8 / 4
+  "deepseek-flash": {
+    peak: { inputPerMillion: 2.0, outputPerMillion: 8.0 },
+    offPeak: { inputPerMillion: 1.0, outputPerMillion: 4.0 },
+  },
+  // 缓存命中 0.30 / 0.15, 缓存未命中 9.0 / 4.5, 输出 27.0 / 13.5
+  "deepseek-v4-pro": {
+    peak: { inputPerMillion: 9.0, outputPerMillion: 27.0 },
+    offPeak: { inputPerMillion: 4.5, outputPerMillion: 13.5 },
+  },
+};
+
+/** True when `date` (defaulting to now) falls in DeepSeek's peak window. */
+export function isDeepSeekPeak(date: Date = new Date()): boolean {
+  // Shift into Beijing time, then read UTC parts so the host timezone and DST
+  // never enter the calculation.
+  const beijing = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+  const day = beijing.getUTCDay(); // 0 = Sunday
+  if (day === 0 || day === 6) return false;
+  const minutes = beijing.getUTCHours() * 60 + beijing.getUTCMinutes();
+  const morningPeak = minutes >= 9 * 60 && minutes < 12 * 60;
+  const afternoonPeak = minutes >= 14 * 60 && minutes < 18 * 60;
+  return morningPeak || afternoonPeak;
+}
+
+export function getDeepSeekPricing(
+  model: string,
+  date: Date = new Date(),
+): ModelPricing | null {
+  const entry = DEEPSEEK_CNY_PRICING[normalizeModelSlug(model)];
+  if (!entry) return null;
+  return isDeepSeekPeak(date) ? entry.peak : entry.offPeak;
+}
 
 // Hardcoded prices, accurate as of 2026-05. These shift over time on
 // OpenRouter; revisit before each release. A `null` from `getPricing`
@@ -211,16 +280,32 @@ export function normalizeModelSlug(model: string): string {
   return model.replace(/-(?:\d{8}|\d{4}-\d{2}-\d{2})$/, "");
 }
 
-export function getPricing(model: string): ModelPricing | null {
-  return PRICING[model] ?? PRICING[normalizeModelSlug(model)] ?? null;
+/**
+ * USD rates per million tokens, or null when the model is unknown.
+ *
+ * DeepSeek entries are derived from `DEEPSEEK_CNY_PRICING` at the reported
+ * time so the caller's cost estimate reflects whichever rate card is in force
+ * when the call happened.
+ */
+export function getPricing(model: string, at: Date = new Date()): ModelPricing | null {
+  const slug = normalizeModelSlug(model);
+  const deepseek = getDeepSeekPricing(slug, at);
+  if (deepseek) {
+    return {
+      inputPerMillion: cnyToUsd(deepseek.inputPerMillion),
+      outputPerMillion: cnyToUsd(deepseek.outputPerMillion),
+    };
+  }
+  return PRICING[slug] ?? null;
 }
 
 export function estimateCostCents(
   model: string,
   inputTokens: number,
   outputTokens: number,
+  at: Date = new Date(),
 ): number | null {
-  const p = getPricing(model);
+  const p = getPricing(model, at);
   if (!p) return null;
   const usd = (p.inputPerMillion * inputTokens + p.outputPerMillion * outputTokens) / 1_000_000;
   return usd * 100;
