@@ -207,7 +207,7 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
     if (chat.messages.length === 0) return;
     if (
       !confirm(
-        "把这个对话作为 wiki 来源入库？智能体会读完整段对话，并据此新建或更新 wiki 页面。任务会在后台执行，离开本页不会中断。",
+        "把这个对话作为 wiki SourceIngest？智能体会读完整段对话，并据此新建或更新 wiki 页面。任务会在后台执行，离开本页不会中断。",
       )
     )
       return;
@@ -244,7 +244,7 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
         if (!aliveRef.current) return;
         if (!isActive(task)) {
           if (task.status !== "succeeded") {
-            throw new Error(task.error ?? "入库失败。");
+            throw new Error(task.error ?? "Ingest失败。");
           }
           const out = (task.output ?? {}) as {
             newPages?: Array<{ slug: string; title: string }>;
@@ -333,9 +333,9 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
             size="sm"
             onClick={onIngestChat}
             disabled={ingestingChat || chat.messages.length === 0}
-            title="把整段对话作为来源跑一遍入库流程"
+            title="把整段对话作为Source跑一遍Ingest流程"
           >
-            {ingestingChat ? "提交中…" : "入库到 wiki"}
+            {ingestingChat ? "提交中…" : "Ingest到 wiki"}
           </Button>
           <Button variant="ghost" size="sm" onClick={onDelete}>
             删除
@@ -350,7 +350,7 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
             新建 {ingestChatResult.newPages.length} 个页面，更新{" "}
             {ingestChatResult.updatedPages.length} 个。
             {ingestChatResult.pending
-              ? " 审批开关已开启，请在“来源”页确认后再写入。"
+              ? " 审批开关已开启，请在“Source”页确认后再写入。"
               : ""}
           </p>
           {ingestChatResult.newPages.length > 0 ? (
@@ -373,7 +373,7 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
       ) : null}
       {ingestChatError ? (
         <div className="border-b border-destructive/30 bg-destructive/10 px-6 py-2 text-sm text-destructive">
-          对话入库失败：{ingestChatError}
+          对话Ingest失败：{ingestChatError}
         </div>
       ) : null}
 

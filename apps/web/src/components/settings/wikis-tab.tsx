@@ -39,7 +39,7 @@ const SCHEMA_TEMPLATES: ReadonlyArray<SchemaTemplateMeta> = [
     id: "research",
     label: "研究",
     description:
-      "学术／科研语气。论点以来源为依据，使用技术性表述，并显式列出待解的开放问题。",
+      "学术／科研语气。论点以Source为依据，使用技术性表述，并显式列出待解的开放问题。",
   },
   {
     id: "legal",
@@ -63,7 +63,7 @@ const SCHEMA_TEMPLATES: ReadonlyArray<SchemaTemplateMeta> = [
     id: "personal",
     label: "个人知识库",
     description:
-      "语气友好、鼓励探索。欢迎开放性问题，记录来源以便日后重新查找。",
+      "语气友好、鼓励探索。欢迎开放性问题，记录Source以便日后重新查找。",
   },
 ];
 
@@ -258,7 +258,7 @@ export function WikisTab() {
           <a
             href="/dashboard"
             className="rounded-md border border-border bg-background px-3 py-1.5 text-xs hover:border-primary/40 hover:bg-accent"
-            title="每个 wiki 的页面／来源／对话数量，以及所有 wiki 的累计大语言模型支出，按最近使用排序。"
+            title="每个 wiki 的页面／Source／对话数量，以及所有 wiki 的累计大语言模型支出，按最近使用排序。"
           >
             健康概览
           </a>
@@ -267,7 +267,7 @@ export function WikisTab() {
               href="/api/wikis/export"
               download
               className="rounded-md border border-border bg-background px-3 py-1.5 text-xs hover:border-primary/40 hover:bg-accent"
-              title="下载当前启用 wiki 的 zip 压缩包（markdown + 原始来源 + 对话 + schema + 索引 + 日志）。会跳过 .llm-wiki/ 元数据。"
+              title="下载当前启用 wiki 的 zip 压缩包（markdown + 原始Source + 对话 + schema + 索引 + 日志）。会跳过 .llm-wiki/ 元数据。"
             >
               导出当前 wiki
             </a>

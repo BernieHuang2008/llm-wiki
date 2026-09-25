@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 const PRIMARY_NAV = [
   { label: "Wiki", href: "/wiki" },
   { label: "图谱", href: "/graph" },
-  { label: "来源", href: "/sources" },
+  { label: "Source", href: "/sources" },
   { label: "查询", href: "/query" },
   { label: "对话", href: "/chats" },
   { label: "体检", href: "/lint" },

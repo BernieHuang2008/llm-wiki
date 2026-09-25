@@ -415,7 +415,7 @@ export async function ingestPastedText(
     });
     return { sourceId, rawFilename, response, dryRun: false };
   } catch (err) {
-    // Source row stays in DB so the UI can show "尚未入库" with a Retry
+    // Source row stays in DB so the UI can show "尚未Ingest" with a Retry
     // affordance later. The failure message is attached so the list can
     // explain itself instead of showing a bare "pending".
     markSourceFailed(opts.db, sourceId, (err as Error).message ?? "ingest failed");

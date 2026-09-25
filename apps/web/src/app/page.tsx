@@ -92,7 +92,7 @@ export default async function HomePage({
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatTile label="页面" value={pageCount.toString()} href="/wiki" />
-        <StatTile label="来源" value={sourceCount.toString()} href="/sources" />
+        <StatTile label="Source" value={sourceCount.toString()} href="/sources" />
         <StatTile label="对话" value={chatCount.toString()} href="/chats" />
         {/* LLM spend tile points at /dashboard, not /settings — dashboard
             shows this wiki's spend in context with every other wiki's, plus
@@ -113,9 +113,9 @@ export default async function HomePage({
       <section className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <ActionCard
           tone="primary"
-          title={isFresh ? "添加你的第一个来源" : "入库一份来源"}
+          title={isFresh ? "添加你的第一个Source" : "Ingest一份Source"}
           body="粘贴一篇文章、拖入 PDF，或抓取一个 URL。智能体会阅读它、撰写页面并建立交叉链接。"
-          cta="打开来源页 →"
+          cta="打开Source页 →"
           href="/sources"
         />
         <ActionCard
@@ -128,20 +128,20 @@ export default async function HomePage({
           title="浏览知识库"
           body={
             pageCount === 0
-              ? "目前还是空的。添加一份来源，开始把它填起来。"
+              ? "目前还是空的。添加一份Source，开始把它填起来。"
               : `${pageCount} 个页面，涵盖概念、实体和总览。`
           }
-          cta={pageCount === 0 ? "先添加一份来源 →" : "打开知识库 →"}
+          cta={pageCount === 0 ? "先添加一份Source →" : "打开知识库 →"}
           href={pageCount === 0 ? "/sources" : "/wiki"}
         />
         <ActionCard
           title="体检知识库"
           body={
             pageCount === 0
-              ? "还没有可检查的内容。请先入库来源。"
+              ? "还没有可检查的内容。请先IngestSource。"
               : "扫描矛盾、失效链接、孤岛页面和内容缺口。可直接就地快速修复。"
           }
-          cta={pageCount === 0 ? "先添加一份来源 →" : "打开体检 →"}
+          cta={pageCount === 0 ? "先添加一份Source →" : "打开体检 →"}
           href={pageCount === 0 ? "/sources" : "/lint"}
         />
       </section>
@@ -150,8 +150,8 @@ export default async function HomePage({
         <MetaCard
           title="它是如何工作的"
           items={[
-            "磁盘上有三个层次：原始来源、由 LLM 维护的知识库、你的 CLAUDE.md schema。",
-            "三项操作：入库、查询、体检。全部针对你的文件夹运行。",
+            "磁盘上有三个层次：原始Source、由 LLM 维护的知识库、你的 CLAUDE.md schema。",
+            "三项操作：Ingest、查询、体检。全部针对你的文件夹运行。",
             "一切都只是 markdown 文件 —— 用 git 管理它，用 iCloud 同步它，在 Obsidian 中编辑它。",
           ]}
         />

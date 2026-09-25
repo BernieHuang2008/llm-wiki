@@ -59,7 +59,7 @@ export default async function LogPage() {
         title="日志"
         description={
           <>
-            这个知识库中的每一次入库、编辑、体检和 schema 保存，最新的排在最前。它镜像磁盘上的{" "}
+            这个知识库中的每一次Ingest、编辑、体检和 schema 保存，最新的排在最前。它镜像磁盘上的{" "}
             <code className="font-mono">{ctx.wikiPath}/log.md</code> —— 你也可以随时
             用编辑器打开它。
           </>
@@ -68,7 +68,7 @@ export default async function LogPage() {
 
       {entries.length === 0 ? (
         <p className="rounded-md border border-border/70 bg-card p-4 text-sm text-muted-foreground">
-          还没有记录。随着你入库来源、编辑页面、运行体检或
+          还没有记录。随着你IngestSource、编辑页面、运行体检或
           保存 schema，日志会逐渐填充起来。
         </p>
       ) : (

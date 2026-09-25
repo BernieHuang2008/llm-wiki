@@ -83,7 +83,7 @@ export function SourcesView() {
         : mode === "url"
           ? url
           : "粘贴的文本";
-    console.log(`%c[入库提交] 提交来源："${label}"（${mode}）`, "color: #3b82f6; font-weight: bold;");
+    console.log(`%c[Ingest提交] 提交Source："${label}"（${mode}）`, "color: #3b82f6; font-weight: bold;");
 
     try {
       let res: Response;
@@ -117,12 +117,12 @@ export function SourcesView() {
 
       const count = json.taskIds?.length ?? 1;
       console.log(
-        `%c[入库已排队] "${label}" -> 已创建 ${count} 个后台任务`,
+        `%c[Ingest已排队] "${label}" -> 已创建 ${count} 个后台任务`,
         "color: #10b981; font-weight: bold;",
       );
       setSubmitted(
         count === 1
-          ? "已提交 1 个后台任务。可以关闭本页或切换页面，入库会在服务端继续执行。"
+          ? "已提交 1 个后台任务。可以关闭本页或切换页面，Ingest会在服务端继续执行。"
           : `已提交 ${count} 个后台任务，每个文件独立执行、互不影响。可以关闭本页。`,
       );
       setText("");
@@ -130,7 +130,7 @@ export function SourcesView() {
       resetPicker();
       setRefreshNonce((n) => n + 1);
     } catch (err) {
-      console.error(`[入库提交失败] "${label}"：${(err as Error).message}`);
+      console.error(`[Ingest提交失败] "${label}"：${(err as Error).message}`);
       setError((err as Error).message);
     } finally {
       setBusy(false);
@@ -151,13 +151,13 @@ export function SourcesView() {
     <PageContainer>
       <PageHeader
         eyebrow="加入 wiki"
-        title="来源"
-        description="粘贴文本和 Markdown 直接入库；网址会抓取并用 Readability 抽取正文；PDF 与图片走视觉模型；DOCX/PPTX/XLSX 在本地预解析。所有任务都在后台执行，关闭页面不会中断。"
+        title="Source"
+        description="粘贴文本和 Markdown 直接Ingest；网址会抓取并用 Readability 抽取正文；PDF 与图片走视觉模型；DOCX/PPTX/XLSX 在本地预解析。所有任务都在后台执行，关闭页面不会中断。"
       />
 
       <section className="mb-8 rounded-lg border border-border/70 bg-card p-5">
         <div className="mb-3 flex items-baseline justify-between">
-          <h2 className="font-display text-h3 font-semibold">待处理来源</h2>
+          <h2 className="font-display text-h3 font-semibold">待处理Source</h2>
           <p className="text-caption text-muted-foreground">
             只显示排队中、执行中与失败的条目；原文保存在{" "}
             <code className="font-mono">raw/</code>
@@ -258,7 +258,7 @@ export function SourcesView() {
                 disabled={busy}
               />
               <p className="mt-1 text-xs text-muted-foreground">
-                会抓取页面、用 Mozilla Readability 去除导航与广告，再对正文入库。
+                会抓取页面、用 Mozilla Readability 去除导航与广告，再对正文Ingest。
               </p>
             </div>
           ) : null}
@@ -365,12 +365,12 @@ export function SourcesView() {
 
           <div className="flex flex-wrap items-center gap-2">
             <Button type="submit" disabled={!canSubmit}>
-              {busy ? "提交中…" : "提交入库"}
+              {busy ? "提交中…" : "提交Ingest"}
             </Button>
             <p className="text-xs text-muted-foreground">
               {mode === "file" && visionCount > 0
                 ? "含 PDF/图片，将使用 设置 → 模型 → 视觉 中的模型。"
-                : "使用入库模型；提交后立即返回，任务在后台执行。"}
+                : "使用Ingest模型；提交后立即返回，任务在后台执行。"}
             </p>
           </div>
         </form>
@@ -399,7 +399,7 @@ export function SourcesView() {
         <Link href="/wiki" className="underline underline-offset-2">
           Wiki
         </Link>{" "}
-        浏览由这些来源生成的页面。
+        浏览由这些Source生成的页面。
       </p>
     </PageContainer>
   );
@@ -414,17 +414,17 @@ function IngestErrorBanner({ message }: { message: string }) {
   return (
     <div className="mt-6 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
       <p className="font-medium">
-        {isSchemaError ? "模型返回的数据格式不正确。" : "提交入库任务失败。"}
+        {isSchemaError ? "模型返回的数据格式不正确。" : "提交Ingest任务失败。"}
       </p>
       {isSchemaError ? (
         <p className="mt-1 text-destructive/85">
-          再点一次 <strong>提交入库</strong> 通常就能成功——小模型偶尔会偏离 JSON 格式。
+          再点一次 <strong>提交Ingest</strong> 通常就能成功——小模型偶尔会偏离 JSON 格式。
           如果反复出现，请在{" "}
           <a
             href="/settings"
             className="underline underline-offset-2 hover:text-destructive/70"
           >
-            设置 → 模型 → 入库
+            设置 → 模型 → Ingest
           </a>{" "}
           中换用更强的模型（例如{" "}
           <code className="font-mono text-xs">anthropic/claude-sonnet-4.6</code> 或{" "}

@@ -15,6 +15,8 @@ export type GlobalConfig = {
   version: 1;
   /** Present only when keychain is unavailable. See secrets.ts. */
   openrouterKey?: string;
+  /** DeepSeek platform key; same keychain-first rule as openrouterKey. */
+  deepseekKey?: string;
   /**
    * The wiki folder the app is currently pointing at. Written by the
    * Settings → Wikis picker. Consulted by apps/web's resolveWikiPath()
@@ -60,6 +62,9 @@ function parseGlobalConfig(raw: unknown): GlobalConfig {
 
   if (typeof data["openrouterKey"] === "string" && data["openrouterKey"].length > 0) {
     out.openrouterKey = data["openrouterKey"];
+  }
+  if (typeof data["deepseekKey"] === "string" && data["deepseekKey"].length > 0) {
+    out.deepseekKey = data["deepseekKey"];
   }
   if (typeof data["activeWiki"] === "string" && data["activeWiki"].length > 0) {
     out.activeWiki = data["activeWiki"];
@@ -177,15 +182,19 @@ export async function removeRecentWiki(wikiPath: string): Promise<GlobalConfig> 
 // Lives inside the wiki folder. Safe to commit alongside the wiki.
 
 /** Which inference provider backs a model slot. */
-export type ModelProvider = "openrouter" | "ollama";
+export type ModelProvider = "openrouter" | "ollama" | "deepseek";
 
-const VALID_PROVIDERS: ModelProvider[] = ["openrouter", "ollama"];
+/** Providers that require the user to supply an API key. */
+export const KEYED_PROVIDERS: readonly ModelProvider[] = ["openrouter", "deepseek"] as const;
+
+const VALID_PROVIDERS: ModelProvider[] = ["openrouter", "ollama", "deepseek"];
 
 /**
  * Configuration for a single operation slot.
  * `model` is a provider-specific model slug:
  *   - OpenRouter: e.g. "anthropic/claude-haiku-4.5"
  *   - Ollama:     e.g. "llama3", "mistral"
+ *   - DeepSeek:   e.g. "deepseek-v4-flash", "deepseek-v4-pro"
  */
 export type ModelSlotConfig = {
   provider: ModelProvider;

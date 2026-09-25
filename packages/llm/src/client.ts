@@ -13,15 +13,45 @@ import {
 
 export type LlmClient = OpenAI;
 
-const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+/**
+ * Inference providers the app can talk to. Kept in sync with core's
+ * `ModelProvider`; declared here too so this package stays dependency-free.
+ */
+export type ModelProvider = "openrouter" | "ollama" | "deepseek";
 
-export function createClient(apiKey: string, provider?: "openrouter" | "ollama"): LlmClient {
+export const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+
+/**
+ * DeepSeek's official OpenAI-compatible endpoint. Using the vendor's own base
+ * URL (not a router) is deliberate: DeepSeek keys only work there, and it
+ * keeps prompt/completion traffic off third-party infrastructure.
+ */
+export const DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1";
+
+export function createClient(
+  apiKey: string,
+  provider?: ModelProvider,
+  signal?: AbortSignal,
+): LlmClient {
+  if (provider === "deepseek") {
+    if (!apiKey) throw new Error("createClient: DeepSeek apiKey is required");
+    return new OpenAI({
+      apiKey,
+      baseURL: DEEPSEEK_BASE_URL,
+      // The background executor's watchdog aborts through this signal, so a
+      // provider that accepts a connection and never answers cannot hold a
+      // worker lane open indefinitely.
+      ...(signal ? { signal } : {}),
+    });
+  }
+
   if (provider === "ollama") {
     const rawBaseUrl = process.env["OLLAMA_BASE_URL"] || "http://localhost:11434";
     const baseURL = rawBaseUrl.endsWith("/v1") ? rawBaseUrl : `${rawBaseUrl.replace(/\/$/, "")}/v1`;
     return new OpenAI({
       apiKey: "ollama",
       baseURL,
+      ...(signal ? { signal } : {}),
     });
   }
 
@@ -29,6 +59,7 @@ export function createClient(apiKey: string, provider?: "openrouter" | "ollama")
   return new OpenAI({
     apiKey,
     baseURL: OPENROUTER_BASE_URL,
+    ...(signal ? { signal } : {}),
     defaultHeaders: {
       // OpenRouter attribution headers — visible to OpenRouter analytics
       // only; never include user content.

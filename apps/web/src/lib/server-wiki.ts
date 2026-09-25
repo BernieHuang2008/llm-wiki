@@ -77,12 +77,37 @@ export type WikiContext = {
 let onWikiContextOpened: (() => void) | null = null;
 
 export function registerWikiContextHook(hook: () => void): void {
+  hookRegistered = true;
   onWikiContextOpened = hook;
   try {
     hook();
   } catch {
     // Starting the executor is best-effort; a request must never fail for it.
   }
+}
+
+let hookRegistered = false;
+let hookWarningEmitted = false;
+
+/**
+ * True once the background task executor has loaded and registered itself.
+ *
+ * Callers that create tasks assert this: if the executor module ever drops out
+ * of the server bundle again (which is exactly how every queued task silently
+ * sat unclaimed the first time), the failure should be loud and immediate
+ * instead of looking like a slow model.
+ */
+export function isTaskExecutorRegistered(): boolean {
+  return hookRegistered;
+}
+
+/** One-shot console warning; safe to call on every task submission. */
+export function warnIfExecutorMissing(): void {
+  if (hookRegistered || hookWarningEmitted) return;
+  hookWarningEmitted = true;
+  console.error(
+    "[task-executor] 后台任务执行器未注册——任务会一直停留在队列中。请确认 @/lib/task-executor 被导入。",
+  );
 }
 
 /**
@@ -169,15 +194,18 @@ export async function openWikiContext(): Promise<WikiContext> {
  * (the user needs to be able to reach Settings to configure things).
  */
 export async function requireSetup(slot?: keyof WikiSettings["defaultModels"]): Promise<void> {
-  const [apiKeyStatus, settings] = await Promise.all([
-    getApiKey(),
-    loadWikiSettings(resolveWikiPath()),
-  ]);
-  const hasKey = !!apiKeyStatus.key;
+  const settings = await loadWikiSettings(resolveWikiPath());
 
   let needsKey = false;
   if (slot) {
-    needsKey = settings.defaultModels[slot].provider === "openrouter" && !hasKey;
+    const provider = settings.defaultModels[slot].provider;
+    // Ollama runs locally, so it never needs a key. A hosted provider only
+    // counts as configured when *its own* key is present — an OpenRouter key
+    // does not authorise DeepSeek.
+    if (provider !== "ollama") {
+      const { key } = await getApiKey(provider);
+      needsKey = !key;
+    }
   }
 
   const needsTopic = settings.topic.trim().length === 0;

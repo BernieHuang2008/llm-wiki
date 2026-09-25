@@ -43,6 +43,7 @@ import {
   type IngestTextTaskInput,
   type IngestUrlTaskInput,
   type LinkFixTaskInput,
+  type ModelProvider,
   type QueryTaskInput,
   type TaskKind,
   type TaskRow,
@@ -75,6 +76,25 @@ const LANE_IDLE_RETRY_MS = 1_500;
 const MAX_ATTEMPTS = 3;
 const RETRY_BACKOFF_MS = [2_000, 8_000];
 const PRUNE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Hard ceiling on one task's model work. Without it a provider that accepts a
+ * connection and then never answers holds the lane open forever — and since
+ * ingest has a single serial lane, one such request would stall every later
+ * upload behind it. Eight minutes is generous for a large PDF vision pass.
+ */
+const TASK_BUDGET_MS = 8 * 60 * 1000;
+
+/**
+ * How often a running task rewrites `updated_at`. The lane is single-threaded
+ * and a pending network call does not starve the event loop, so this keeps
+ * ticking during a long model call — a stale heartbeat therefore means the
+ * worker died rather than that the model is slow.
+ */
+const HEARTBEAT_MS = 15_000;
+
+/** A running row untouched for this long is treated as abandoned. */
+const STALE_RUNNING_MS = 5 * 60 * 1000;
 
 const INGEST_KINDS: readonly TaskKind[] = ["ingest_file", "ingest_url", "ingest_text"];
 const SIDE_KINDS: readonly TaskKind[] = ["query", "chat", "link_fix"];
@@ -177,6 +197,15 @@ function withDb<T>(fn: (db: Db) => T): T {
 
 // ---- execution ------------------------------------------------------------
 
+/**
+ * Runs one claimed task with a watchdog.
+ *
+ * Two failure modes are handled here because either one would otherwise park
+ * the lane permanently: an exception thrown outside the try block of a task
+ * runner, and a model call that simply never returns. A lane that dies takes
+ * the whole queue with it, so the contract is that this function always
+ * settles the task in the database and always returns.
+ */
 async function executeTask(task: TaskRow): Promise<void> {
   const opened = await openWikiContext();
   // The user may have switched wikis between submitting and running; the task
@@ -184,10 +213,37 @@ async function executeTask(task: TaskRow): Promise<void> {
   const ctx = opened.wikiPath === task.wiki_path ? opened : openWikiContextSync();
   if (ctx !== opened) opened.db.close();
 
+  // Cancelling this aborts in-flight model requests at the SDK boundary; it
+  // doubles as the per-task deadline. Progress writes keep the heartbeat fresh
+  // so a slow-but-alive task is never mistaken for an abandoned one.
+  const watchdog = new AbortController();
+  let deadlineHit = false;
+  const deadline = setTimeout(() => {
+    deadlineHit = true;
+    watchdog.abort(new Error(`任务超过 ${Math.round(TASK_BUDGET_MS / 60_000)} 分钟上限，已中止`));
+  }, TASK_BUDGET_MS);
+  const heartbeat = setInterval(() => {
+    try {
+      setTaskProgress(ctx.db, task.id, lastProgress.get(task.id) ?? "正在调用模型…");
+    } catch {
+      // Best-effort; the DB may be momentarily busy.
+    }
+  }, HEARTBEAT_MS);
+
+  lastProgress.set(task.id, "已开始执行");
+
   try {
-    await dispatch(task, ctx);
+    await Promise.race([
+      dispatch(task, ctx, watchdog.signal),
+      // Guarantees the race settles even if the task ignores the signal.
+      sleep(TASK_BUDGET_MS + 5_000).then(() => {
+        deadlineHit = true;
+      }),
+    ]);
   } catch (err) {
-    const message = errorMessage(err);
+    const message = deadlineHit
+      ? `任务超过 ${Math.round(TASK_BUDGET_MS / 60_000)} 分钟仍未完成，已中止。`
+      : errorMessage(err);
     // Surface the reason on the source row so the sources list can explain why
     // the item is still waiting instead of showing a bare "pending".
     if (task.source_id) {
@@ -197,7 +253,7 @@ async function executeTask(task: TaskRow): Promise<void> {
         // Source may have been deleted while the task ran.
       }
     }
-    if (task.attempts < MAX_ATTEMPTS && isRetryable(err)) {
+    if (!deadlineHit && task.attempts < MAX_ATTEMPTS && isRetryable(err)) {
       const backoff = RETRY_BACKOFF_MS[Math.max(0, task.attempts - 1)] ?? 8_000;
       requeueTask(
         ctx.db,
@@ -210,28 +266,34 @@ async function executeTask(task: TaskRow): Promise<void> {
       failTask(ctx.db, task.id, message);
     }
   } finally {
+    clearTimeout(deadline);
+    clearInterval(heartbeat);
+    lastProgress.delete(task.id);
     ctx.db.close();
   }
 }
+
+/** Last progress message per running task, so the heartbeat can rewrite it. */
+const lastProgress = new Map<string, string>();
 
 function bumpAttempts(db: Db, id: string): void {
   db.prepare(`UPDATE tasks SET attempts = attempts + 1 WHERE id = ?`).run(id);
 }
 
-async function dispatch(task: TaskRow, ctx: WikiContext): Promise<void> {
+async function dispatch(task: TaskRow, ctx: WikiContext, signal: AbortSignal): Promise<void> {
   switch (task.kind) {
     case "ingest_file":
-      return runIngestFile(task, ctx);
+      return runIngestFile(task, ctx, signal);
     case "ingest_url":
-      return runIngestUrl(task, ctx);
+      return runIngestUrl(task, ctx, signal);
     case "ingest_text":
-      return runIngestText(task, ctx);
+      return runIngestText(task, ctx, signal);
     case "query":
-      return runQuery(task, ctx);
+      return runQuery(task, ctx, signal);
     case "chat":
-      return runChat(task, ctx);
+      return runChat(task, ctx, signal);
     case "link_fix":
-      return runLinkFix(task, ctx);
+      return runLinkFix(task, ctx, signal);
     default: {
       const _exhaustive: never = task.kind;
       throw new Error(`未知任务类型：${String(_exhaustive)}`);
@@ -241,7 +303,7 @@ async function dispatch(task: TaskRow, ctx: WikiContext): Promise<void> {
 
 // ---- ingest ---------------------------------------------------------------
 
-async function runIngestFile(task: TaskRow, ctx: WikiContext): Promise<void> {
+async function runIngestFile(task: TaskRow, ctx: WikiContext, signal: AbortSignal): Promise<void> {
   const { db, wikiPath, settings } = ctx;
   const input = task.input as IngestFileTaskInput;
   const source = requireSource(db, input.sourceId);
@@ -264,7 +326,7 @@ async function runIngestFile(task: TaskRow, ctx: WikiContext): Promise<void> {
     extracted.kind === "vision"
       ? settings.defaultModels.vision.provider
       : settings.defaultModels.ingest.provider;
-  const client = createClient(await requireApiKey(provider), provider);
+  const client = createClient(await requireApiKey(provider), provider, signal);
   const model =
     input.model ??
     (extracted.kind === "vision"
@@ -272,7 +334,7 @@ async function runIngestFile(task: TaskRow, ctx: WikiContext): Promise<void> {
       : settings.defaultModels.ingest.model);
   const dryRun = settings.requireApprovalForIngest;
 
-  progress(db, task.id, dryRun ? "正在生成入库提案…" : "正在调用模型生成 wiki 页面…");
+  progress(db, task.id, dryRun ? "正在生成Ingest提案…" : "正在调用模型生成 wiki 页面…");
   const onProgress = taskProgress(db, task.id);
 
   const response =
@@ -301,7 +363,7 @@ async function runIngestFile(task: TaskRow, ctx: WikiContext): Promise<void> {
   await finishIngest(db, task.id, source.id, response, model, dryRun);
 }
 
-async function runIngestUrl(task: TaskRow, ctx: WikiContext): Promise<void> {
+async function runIngestUrl(task: TaskRow, ctx: WikiContext, signal: AbortSignal): Promise<void> {
   const { db, wikiPath, settings } = ctx;
   const input = task.input as IngestUrlTaskInput;
   const source = requireSource(db, input.sourceId);
@@ -310,11 +372,11 @@ async function runIngestUrl(task: TaskRow, ctx: WikiContext): Promise<void> {
   const extracted = await fetchAndExtractUrl(input.url);
 
   const provider = settings.defaultModels.ingest.provider;
-  const client = createClient(await requireApiKey(provider), provider);
+  const client = createClient(await requireApiKey(provider), provider, signal);
   const model = input.model ?? settings.defaultModels.ingest.model;
   const dryRun = settings.requireApprovalForIngest;
 
-  progress(db, task.id, dryRun ? "正在生成入库提案…" : "正在调用模型生成 wiki 页面…");
+  progress(db, task.id, dryRun ? "正在生成Ingest提案…" : "正在调用模型生成 wiki 页面…");
   const response = await ingestSource({
     source: { content: extracted.content, title: input.title, format: "url" },
     wikiPath,
@@ -329,7 +391,7 @@ async function runIngestUrl(task: TaskRow, ctx: WikiContext): Promise<void> {
   await finishIngest(db, task.id, source.id, response, model, dryRun);
 }
 
-async function runIngestText(task: TaskRow, ctx: WikiContext): Promise<void> {
+async function runIngestText(task: TaskRow, ctx: WikiContext, signal: AbortSignal): Promise<void> {
   const { db, wikiPath, settings } = ctx;
   const input = task.input as IngestTextTaskInput;
   const source = requireSource(db, input.sourceId);
@@ -341,11 +403,11 @@ async function runIngestText(task: TaskRow, ctx: WikiContext): Promise<void> {
     stripLeadingTitle(await readFile(join(wikiPath, WIKI_PATHS.raw, source.filename), "utf8"));
 
   const provider = settings.defaultModels.ingest.provider;
-  const client = createClient(await requireApiKey(provider), provider);
+  const client = createClient(await requireApiKey(provider), provider, signal);
   const model = input.model ?? settings.defaultModels.ingest.model;
   const dryRun = settings.requireApprovalForIngest;
 
-  progress(db, task.id, dryRun ? "正在生成入库提案…" : "正在调用模型生成 wiki 页面…");
+  progress(db, task.id, dryRun ? "正在生成Ingest提案…" : "正在调用模型生成 wiki 页面…");
   const response = await ingestSource({
     source: { content: body, title: input.title, format: "md" },
     wikiPath,
@@ -393,12 +455,12 @@ function stripLeadingTitle(raw: string): string {
 
 // ---- query / chat ---------------------------------------------------------
 
-async function runQuery(task: TaskRow, ctx: WikiContext): Promise<void> {
+async function runQuery(task: TaskRow, ctx: WikiContext, signal: AbortSignal): Promise<void> {
   const { db, wikiPath, settings } = ctx;
   const input = task.input as QueryTaskInput;
   const provider = settings.defaultModels.query.provider;
   const model = input.model ?? settings.defaultModels.query.model;
-  const capture = captureClientModel(createClient(await requireApiKey(provider), provider));
+  const capture = captureClientModel(createClient(await requireApiKey(provider), provider, signal));
 
   progress(db, task.id, "正在检索 wiki 并生成回答…");
   const response = await queryWiki({
@@ -418,11 +480,11 @@ async function runQuery(task: TaskRow, ctx: WikiContext): Promise<void> {
   });
 }
 
-async function runChat(task: TaskRow, ctx: WikiContext): Promise<void> {
+async function runChat(task: TaskRow, ctx: WikiContext, signal: AbortSignal): Promise<void> {
   const { db, wikiPath, settings } = ctx;
   const input = task.input as ChatTaskInput;
   const provider = settings.defaultModels.chat.provider;
-  const capture = captureClientModel(createClient(await requireApiKey(provider), provider));
+  const capture = captureClientModel(createClient(await requireApiKey(provider), provider, signal));
 
   progress(db, task.id, "正在生成回复…");
   const result = await sendChatMessage({
@@ -445,7 +507,7 @@ async function runChat(task: TaskRow, ctx: WikiContext): Promise<void> {
 
 // ---- link fixes -----------------------------------------------------------
 
-async function runLinkFix(task: TaskRow, ctx: WikiContext): Promise<void> {
+async function runLinkFix(task: TaskRow, ctx: WikiContext, signal: AbortSignal): Promise<void> {
   const { db, wikiPath, settings } = ctx;
   const input = task.input as LinkFixTaskInput;
 
@@ -486,7 +548,7 @@ async function runLinkFix(task: TaskRow, ctx: WikiContext): Promise<void> {
     case "create-stub-page": {
       const missingSlug = required(input.missingSlug, "missingSlug");
       const provider = settings.defaultModels.ingest.provider;
-      const client = createClient(await requireApiKey(provider), provider);
+      const client = createClient(await requireApiKey(provider), provider, signal);
       const model = settings.defaultModels.ingest.model;
       // Context from the pages that reference the missing slug, so the draft
       // fits the wiki's voice.
@@ -519,7 +581,7 @@ async function runLinkFix(task: TaskRow, ctx: WikiContext): Promise<void> {
       const issueDescription = required(input.issueDescription, "issueDescription");
       const fixInstruction = required(input.fixInstruction, "fixInstruction");
       const provider = settings.defaultModels.lint.provider;
-      const client = createClient(await requireApiKey(provider), provider);
+      const client = createClient(await requireApiKey(provider), provider, signal);
       const model = settings.defaultModels.lint.model;
       progress(db, task.id, "正在应用修复建议…");
       const result = await applyLintSuggestedFix({
@@ -569,6 +631,9 @@ function progressMessageOf(event: unknown): string | null {
 }
 
 function progress(db: Db, taskId: string, message: string): void {
+  // Remembered so the heartbeat interval can rewrite it and keep `updated_at`
+  // moving while a long model call is in flight.
+  lastProgress.set(taskId, message);
   try {
     setTaskProgress(db, taskId, message);
   } catch {
@@ -591,12 +656,19 @@ function required<T>(value: T | undefined, name: string): T {
   return value;
 }
 
-async function requireApiKey(provider: string): Promise<string> {
-  const { key } = await getApiKey();
-  if (provider === "openrouter" && !key) {
-    throw new NonRetryableError("未配置 OpenRouter API Key，请在“设置 → API”中填写。");
+async function requireApiKey(provider: ModelProvider): Promise<string> {
+  // Ollama is local and takes a placeholder; the hosted providers need a real
+  // key from the matching keychain/settings entry.
+  if (provider === "ollama") return "ollama";
+  const { key } = await getApiKey(provider);
+  if (!key) {
+    throw new NonRetryableError(
+      provider === "deepseek"
+        ? "未配置 DeepSeek API Key，请在“设置 → API”中填写。"
+        : "未配置 OpenRouter API Key，请在“设置 → API”中填写。",
+    );
   }
-  return key || "";
+  return key;
 }
 
 class NonRetryableError extends Error {}

@@ -73,11 +73,11 @@ export function isIngestKind(kind: TaskKind): boolean {
 export function taskKindLabel(kind: TaskKind): string {
   switch (kind) {
     case "ingest_file":
-      return "文件入库";
+      return "文件Ingest";
     case "ingest_url":
-      return "网址入库";
+      return "网址Ingest";
     case "ingest_text":
-      return "文本入库";
+      return "文本Ingest";
     case "query":
       return "查询";
     case "chat":

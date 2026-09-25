@@ -89,7 +89,7 @@ export function GeneralTab() {
       <div>
         <h2 className="text-lg font-medium">Wiki 主题</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          用一句话描述<strong>这个</strong> wiki 的范围。智能体在每次入库和查询时都会读取它，
+          用一句话描述<strong>这个</strong> wiki 的范围。智能体在每次Ingest和查询时都会读取它，
           所以请写得具体一些。
         </p>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -123,17 +123,17 @@ llm-wiki start ~/llm-wiki-machine-learning`}
           </pre>
           <p className="mt-2">
             按照 Karpathy 的模式，每个 wiki 都是一个自包含的语料库。切换文件夹会一次性切换
-            所有页面、对话、来源和 schema。
+            所有页面、对话、Source和 schema。
           </p>
         </div>
       </div>
 
       <div>
-        <h2 className="text-lg font-medium">入库审批把关</h2>
+        <h2 className="text-lg font-medium">Ingest审批把关</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          开启后，每次入库都会先向你展示大语言模型提议的改动（新页面、页面更新、矛盾之处），
+          开启后，每次Ingest都会先向你展示大语言模型提议的改动（新页面、页面更新、矛盾之处），
           在你确认之前不会写入任何内容。点击「应用」才会提交。当你并不完全信任某个廉价的
-          入库模型时很有用——或者只是想先看看模型打算怎么改你的 wiki。
+          Ingest模型时很有用——或者只是想先看看模型打算怎么改你的 wiki。
         </p>
         <label className="mt-3 flex items-center gap-2">
           <input
@@ -144,7 +144,7 @@ llm-wiki start ~/llm-wiki-machine-learning`}
             className="h-4 w-4 rounded border-border"
           />
           <span className="text-sm">
-            应用入库改动前需要审批
+            应用Ingest改动前需要审批
             {approvalSaving ? (
               <span className="ml-2 text-xs text-muted-foreground">保存中…</span>
             ) : null}

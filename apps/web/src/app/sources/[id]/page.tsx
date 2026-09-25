@@ -99,7 +99,7 @@ export default async function SourceDetailPage({
     return (
       <PageContainer width="lg">
         <PageHeader
-          eyebrow="来源"
+          eyebrow="Source"
           title={title}
           description={
             <span className="font-mono text-[13px] break-all">{rawPath}</span>
@@ -109,7 +109,7 @@ export default async function SourceDetailPage({
               href="/sources"
               className="text-ui text-primary underline underline-offset-2 hover:text-primary/80"
             >
-              ← 全部来源
+              ← 全部Source
             </Link>
           }
         />
@@ -139,7 +139,7 @@ export default async function SourceDetailPage({
           </div>
           <div>
             <dt className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              入库时间
+              Ingest时间
             </dt>
             <dd className="mt-0.5 font-mono text-[12px]">
               {source.ingested_at ? formatDate(source.ingested_at) : "待处理"}
@@ -156,7 +156,7 @@ export default async function SourceDetailPage({
           {source.url ? (
             <div className="col-span-2">
               <dt className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                来源网址
+                Source网址
               </dt>
               <dd className="mt-0.5">
                 <a

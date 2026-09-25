@@ -11,11 +11,12 @@ const SLOTS = ["ingest", "query", "chat", "lint", "vision"] as const;
 type Slot = (typeof SLOTS)[number];
 
 // ─── Provider types ────────────────────────────────────────────────────────────
-type Provider = "openrouter" | "ollama";
+type Provider = "openrouter" | "ollama" | "deepseek";
 
 const PROVIDERS: { value: Provider; label: string }[] = [
   { value: "openrouter", label: "OpenRouter" },
   { value: "ollama", label: "Ollama（本地）" },
+  { value: "deepseek", label: "DeepSeek（官方）" },
 ];
 
 // ─── OpenRouter model catalogue ────────────────────────────────────────────────
@@ -77,7 +78,7 @@ const SUGGESTED: ReadonlyArray<ModelChoice> = [
   {
     id: "meta-llama/llama-3.3-70b-instruct:free",
     label: "Llama 3.3 70B (free)",
-    notes: "免费 · JSON 表现经过验证 · 入库／体检",
+    notes: "免费 · JSON 表现经过验证 · Ingest／体检",
     vision: false,
     free: true,
   },
@@ -130,10 +131,30 @@ const OLLAMA_SUGGESTED: ReadonlyArray<OllamaChoice> = [
   },
 ];
 
+// ─── DeepSeek official platform models ────────────────────────────────────────
+// These ids are DeepSeek's own and are sent to https://api.deepseek.com — they
+// are NOT interchangeable with OpenRouter's `deepseek/...` slugs.
+type DeepSeekChoice = { id: string; label: string; notes: string; vision: boolean };
+
+const DEEPSEEK_SUGGESTED: ReadonlyArray<DeepSeekChoice> = [
+  {
+    id: "deepseek-flash",
+    label: "DeepSeek V4 Flash",
+    notes: "快速、便宜，适合 Ingest／查询／体检",
+    vision: false,
+  },
+  {
+    id: "deepseek-v4-pro",
+    label: "DeepSeek V4 Pro",
+    notes: "推理更强，适合查询／对话与复杂 Ingest",
+    vision: false,
+  },
+];
+
 const CUSTOM_SENTINEL = "__custom__";
 
 const SLOT_HINT: Record<Slot, string> = {
-  ingest: "每次添加来源时运行。建议偏向便宜——调用次数会累积。",
+  ingest: "每次添加Source时运行。建议偏向便宜——调用次数会累积。",
   query: "一次性问答。建议偏向智能——答案是面向用户的。",
   chat: "多轮对话。新对话的默认值；单个对话的覆盖设置保存在该对话的 frontmatter 中。",
   lint: "对整个 wiki 做语义健康检查。建议使用智能模型。",
@@ -143,7 +164,7 @@ const SLOT_HINT: Record<Slot, string> = {
 // Slot ids are technical identifiers used by the API and by the per-slot
 // <select> ids; only the visible label is localized.
 const SLOT_LABEL: Record<Slot, string> = {
-  ingest: "入库",
+  ingest: "Ingest",
   query: "查询",
   chat: "对话",
   lint: "体检",
@@ -190,11 +211,16 @@ export function ModelsTab() {
 
         const knownOR = new Set(SUGGESTED.map((s) => s.id));
         const knownOL = new Set(OLLAMA_SUGGESTED.map((s) => s.id));
+        const knownDS = new Set(DEEPSEEK_SUGGESTED.map((s) => s.id));
         const derivedCustom = {} as Record<Slot, boolean>;
         for (const slot of SLOTS) {
           const { provider, model } = dm[slot];
           derivedCustom[slot] =
-            provider === "ollama" ? !knownOL.has(model) : !knownOR.has(model);
+            provider === "ollama"
+              ? !knownOL.has(model)
+              : provider === "deepseek"
+                ? !knownDS.has(model)
+                : !knownOR.has(model);
         }
         setCustomMode(derivedCustom);
       } catch (err) {
@@ -209,11 +235,17 @@ export function ModelsTab() {
 
   function onProviderChange(slot: Slot, value: Provider) {
     setCustomMode((m) => ({ ...m, [slot]: false }));
-    // Reset model to a sensible default for the new provider
+    // Reset model to a sensible default for the new provider. Model ids are
+    // provider-specific, so carrying the old one over would guarantee a
+    // "model not found" on the next call.
     const defaultModel =
       value === "ollama"
         ? (OLLAMA_SUGGESTED.find((m) => (slot === "vision" ? m.vision : true))?.id ?? "llama3")
-        : (SUGGESTED.find((s) => (slot === "vision" ? s.vision : true))?.id ?? SUGGESTED[0]?.id ?? "openai/gpt-4o-mini");
+        : value === "deepseek"
+          ? (DEEPSEEK_SUGGESTED[0]?.id ?? "deepseek-flash")
+          : (SUGGESTED.find((s) => (slot === "vision" ? s.vision : true))?.id ??
+            SUGGESTED[0]?.id ??
+            "openai/gpt-4o-mini");
     updateSlot(slot, { provider: value, model: defaultModel });
   }
 
@@ -331,7 +363,7 @@ export function ModelsTab() {
               线路不会共享数据。
             </li>
             <li>
-              <strong>JSON 可靠性。</strong>wiki 的入库／查询／体检流程都要求严格的 JSON。
+              <strong>JSON 可靠性。</strong>wiki 的Ingest／查询／体检流程都要求严格的 JSON。
               如果遇到 <em>schema validation failed</em> 报错，免费模型很可能就是原因——
               请把该槽位换成付费模型。
             </li>
@@ -383,15 +415,21 @@ export function ModelsTab() {
             const provider = models[slot].provider;
             const visionOnly = slot === "vision";
             const isOllama = provider === "ollama";
+            const isDeepSeek = provider === "deepseek";
 
-            // Pick which suggestion list to show
+            // Pick which suggestion list to show. Model ids are only valid on
+            // their own provider, so the list follows the provider picker.
             const visibleOptions = isOllama
               ? visionOnly
                 ? OLLAMA_SUGGESTED.filter((s) => s.vision)
                 : OLLAMA_SUGGESTED
-              : visionOnly
-                ? SUGGESTED.filter((s) => s.vision)
-                : SUGGESTED;
+              : isDeepSeek
+                ? visionOnly
+                  ? DEEPSEEK_SUGGESTED.filter((s) => s.vision)
+                  : DEEPSEEK_SUGGESTED
+                : visionOnly
+                  ? SUGGESTED.filter((s) => s.vision)
+                  : SUGGESTED;
 
             const knownIds = new Set(visibleOptions.map((o) => o.id));
             const isCustom = customMode[slot] || !knownIds.has(models[slot].model);
@@ -431,7 +469,11 @@ export function ModelsTab() {
                       </option>
                     ))}
                     <option value={CUSTOM_SENTINEL}>
-                      {isOllama ? "自定义（在下方输入模型名）" : "自定义（在下方输入模型标识）"}
+                      {isOllama
+                        ? "自定义（在下方输入模型名）"
+                        : isDeepSeek
+                          ? "自定义（在下方输入 DeepSeek 模型 id）"
+                          : "自定义（在下方输入模型标识）"}
                     </option>
                   </select>
 
@@ -440,7 +482,13 @@ export function ModelsTab() {
                     <Input
                       value={models[slot].model}
                       onChange={(e) => updateSlot(slot, { model: e.target.value })}
-                      placeholder={isOllama ? "例如 llama3:latest" : "provider/model-id"}
+                      placeholder={
+                        isOllama
+                          ? "例如 llama3:latest"
+                          : isDeepSeek
+                            ? "例如 deepseek-v4-pro"
+                            : "provider/model-id"
+                      }
                       className="font-mono text-[13px] sm:flex-1"
                     />
                   ) : (
@@ -454,6 +502,16 @@ export function ModelsTab() {
                     保存前请先确认{" "}
                     <code className="font-mono">ollama run {models[slot].model || "<model>"}</code>{" "}
                     能在本机正常运行。
+                  </p>
+                )}
+
+                {/* DeepSeek hint — the ids here only work against DeepSeek's
+                    own endpoint, and the key lives in 设置 → API. */}
+                {isDeepSeek && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    使用 DeepSeek 官方接口（<code className="font-mono">api.deepseek.com</code>），
+                    密钥请在「API」标签页填写。此处只接受 DeepSeek 原生模型 id，
+                    与 OpenRouter 的 <code className="font-mono">deepseek/…</code> 写法不通用。
                   </p>
                 )}
 

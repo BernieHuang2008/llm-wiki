@@ -31,7 +31,7 @@ type Props = {
 const TYPE_LABEL: Record<Props["type"], string> = {
   entity: "实体",
   concept: "概念",
-  source: "来源",
+  source: "Source",
   comparison: "对比",
   overview: "概览",
 };
@@ -149,7 +149,7 @@ export function PageView(props: Props) {
           {props.sources && props.sources.length > 0 ? (
             <section className="mt-10 border-t border-border pt-4">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                来源（{props.sources.length}）
+                Source（{props.sources.length}）
               </h2>
               <p className="mt-1 text-xs text-muted-foreground/80">
                 本页面由这些原始输入编译而成。原始字节在磁盘上保持原样，不做改动。

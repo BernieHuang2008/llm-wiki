@@ -20,7 +20,7 @@ const TYPE_LABEL: Record<string, string> = {
   concept: "概念",
   entity: "实体",
   comparison: "对比",
-  source: "来源",
+  source: "Source",
 };
 
 export function WikiSidebar() {
@@ -102,7 +102,7 @@ export function WikiSidebar() {
           <div className="mx-2 mt-2 rounded-md border border-dashed border-border/70 bg-background/40 px-3 py-3 text-caption text-muted-foreground">
             还没有页面。前往{" "}
             <Link href="/sources" className="text-foreground underline underline-offset-2">
-              来源
+              Source
             </Link>{" "}
             添加一个。
           </div>

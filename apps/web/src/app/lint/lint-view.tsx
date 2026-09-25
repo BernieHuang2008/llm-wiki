@@ -715,7 +715,7 @@ export function LintView() {
                                   size="sm"
                                   onClick={() => applyCreateStub(targetSlug, key)}
                                   disabled={bulkBusy !== null || fixingKeys.has(key)}
-                                  title="使用入库模型并结合引用页的上下文起草一个简短的新页面。"
+                                  title="使用Ingest模型并结合引用页的上下文起草一个简短的新页面。"
                                 >
                                   {fixingKeys.has(key)
                                     ? "起草中…"

@@ -6,6 +6,9 @@
 
 export type ModelSlot = "ingest" | "query" | "chat" | "lint" | "vision";
 
+/** Which endpoint a model choice is meant to be sent to. */
+export type ModelProviderId = "openrouter" | "ollama" | "deepseek";
+
 export const DEFAULT_MODELS: Record<ModelSlot, string> = {
   ingest: "anthropic/claude-haiku-4.5",
   query: "anthropic/claude-sonnet-4.6",
@@ -20,6 +23,12 @@ export type ModelChoice = {
   notes: string;
   /** Whether this model can read images / PDFs. */
   vision: boolean;
+  /**
+   * Which provider the id belongs to. Omitted for OpenRouter (the long-
+   * standing default) so existing entries stay untouched; the Settings →
+   * Models dropdown uses it to group choices by provider.
+   */
+  provider?: ModelProviderId;
   /**
    * True for OpenRouter `:free` routes. Users still need an OpenRouter
    * account + key, but per-call cost is zero. Free tier has stricter
@@ -117,7 +126,31 @@ export const SUGGESTED_MODELS: ReadonlyArray<ModelChoice> = [
     vision: true,
     free: true,
   },
+  // DeepSeek platform (api.deepseek.com). These ids are DeepSeek's own —
+  // they are NOT valid on OpenRouter, which uses `deepseek/...` slugs.
+  // Model ids per DeepSeek's "首次调用 API" doc: `deepseek-flash`
+  // (DeepSeek-V4.1-Flash) and `deepseek-v4-pro` (DeepSeek-V4-Pro-0813),
+  // both with a 1M context window.
+  {
+    id: "deepseek-flash",
+    label: "DeepSeek V4 Flash",
+    notes: "DeepSeek 官方 · 快而省，适合 ingest / query / lint。",
+    vision: false,
+    provider: "deepseek",
+  },
+  {
+    id: "deepseek-v4-pro",
+    label: "DeepSeek V4 Pro",
+    notes: "DeepSeek 官方 · 更强推理，适合 query / chat 与复杂 ingest。",
+    vision: false,
+    provider: "deepseek",
+  },
 ];
+
+/** Choices belonging to one provider, for the grouped Settings dropdown. */
+export function modelsForProvider(provider: ModelProviderId): ModelChoice[] {
+  return SUGGESTED_MODELS.filter((m) => (m.provider ?? "openrouter") === provider);
+}
 
 export type ModelPricing = {
   /** USD per 1,000,000 input tokens */

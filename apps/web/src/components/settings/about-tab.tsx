@@ -61,7 +61,7 @@ export function AboutTab() {
           >
             Andrej Karpathy 的 LLM Wiki 模式
           </a>{" "}
-          ——三个层次（原始来源、wiki、schema）、三项操作（入库、查询、体检），
+          ——三个层次（原始Source、wiki、schema）、三项操作（Ingest、查询、体检），
           全部存放在一个装满 markdown 文件的文件夹里。wiki 是持续积累的长期成果，
           而不是查询时才做的检索。
         </p>

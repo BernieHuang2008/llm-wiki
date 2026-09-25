@@ -83,7 +83,7 @@ export function CostsTab() {
 
       {data.breakdown.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          尚未记录任何大语言模型调用。入库一个来源或执行一次查询即可开始统计。
+          尚未记录任何大语言模型调用。Ingest一个Source或执行一次查询即可开始统计。
         </p>
       ) : (
         <div className="overflow-hidden rounded-lg border border-border">

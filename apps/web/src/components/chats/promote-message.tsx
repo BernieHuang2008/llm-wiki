@@ -15,7 +15,7 @@ type PageType = (typeof PAGE_TYPES)[number];
 const PAGE_TYPE_LABEL: Record<PageType, string> = {
   entity: "实体",
   concept: "概念",
-  source: "来源",
+  source: "Source",
   comparison: "对比",
   overview: "概览",
 };

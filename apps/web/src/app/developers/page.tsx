@@ -24,7 +24,7 @@ export default function DevelopersPage() {
           <Link href="/about" className="text-primary underline underline-offset-2">
             关于
           </Link>
-          。设计决策的唯一事实来源在 GitHub 上的{" "}
+          。设计决策的唯一事实Source在 GitHub 上的{" "}
           <a
             href="https://github.com/ddsyasas/llm-wiki/tree/main/docs"
             target="_blank"
@@ -106,7 +106,7 @@ export default function DevelopersPage() {
         </pre>
       </Section>
 
-      <Section id="ops" eyebrow="三项操作" title="入库、查询、体检">
+      <Section id="ops" eyebrow="三项操作" title="Ingest、查询、体检">
         <p>
           Karpathy 的范式以三项操作为核心。每一项都是 <code>packages/core/</code>{" "}
           中的一个函数，接收知识库路径、数据库连接、LLM 客户端和模型 slug。
@@ -187,10 +187,10 @@ export default function DevelopersPage() {
       <Section
         id="storage"
         eyebrow="存储"
-        title="文件是事实来源，SQLite 存元数据"
+        title="文件是事实Source，SQLite 存元数据"
       >
         <p>
-          知识库文件夹是事实来源。SQLite（
+          知识库文件夹是事实Source。SQLite（
           <code>.llm-wiki/meta.sqlite</code>）是派生缓存 ——
           可以在启动时通过{" "}
           <code>syncWikiToDb()</code> 以及实时文件监听从磁盘上的 markdown 重新生成。
@@ -206,16 +206,16 @@ export default function DevelopersPage() {
           </li>
           <li>
             <code>pages_fts</code> —— 针对 title + content +
-            tags 的 FTS5 虚拟表，用于入库/查询/体检时的前 K 相关性排序
+            tags 的 FTS5 虚拟表，用于Ingest/查询/体检时的前 K 相关性排序
           </li>
           <li>
             <code>page_sources</code> —— 多对多关联。支撑每个 wiki 页面上的
-            “来源”区块，以及每个来源详情页上的“贡献了 N
+            “Source”区块，以及每个Source详情页上的“贡献了 N
             个页面”视图
           </li>
           <li>
             <code>chats</code> —— 对话线程元数据（文件仍是事实
-            来源）
+            Source）
           </li>
           <li>
             <code>usage</code> —— 每次调用的 token + 成本记录，供
@@ -236,7 +236,7 @@ export default function DevelopersPage() {
       <Section
         id="extend"
         eyebrow="扩展"
-        title="添加一种新的来源格式"
+        title="添加一种新的Source格式"
       >
         <ol className="ml-5 list-decimal space-y-2">
           <li>
@@ -255,7 +255,7 @@ export default function DevelopersPage() {
             <code>runExtractor()</code> 中添加分支。
           </li>
           <li>
-            把文件扩展名追加到来源页面的{" "}
+            把文件扩展名追加到Source页面的{" "}
             <code>ACCEPTED_EXTENSIONS</code> 常量，
             让文件选择器接受它。
           </li>
@@ -446,7 +446,7 @@ export default function DevelopersPage() {
         <ul className="space-y-1">
           <li>
             <code>packages/core/</code> —— <strong>约 120+ 个 vitest 测试</strong>，{" "}
-            覆盖 wiki 读写、数据库 CRUD、同步、入库、查询、体检、对话、
+            覆盖 wiki 读写、数据库 CRUD、同步、Ingest、查询、体检、对话、
             编辑器、索引构建、链接、配置、密钥。
           </li>
           <li>
@@ -629,7 +629,7 @@ const TOC: Array<{ id: string; label: string }> = [
   { id: "ops", label: "三项操作" },
   { id: "contracts", label: "LLM JSON 契约" },
   { id: "storage", label: "存储 —— 文件 + SQLite" },
-  { id: "extend", label: "添加一种新的来源格式" },
+  { id: "extend", label: "添加一种新的Source格式" },
   { id: "swap-llm", label: "更换 LLM 提供商" },
   { id: "contracts-prompts", label: "提示词放在哪里" },
   { id: "quickfixes", label: "体检快速修复的分发" },

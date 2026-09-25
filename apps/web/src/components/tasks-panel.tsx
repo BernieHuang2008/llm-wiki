@@ -66,7 +66,7 @@ export function TasksPanel() {
 
           {active.length === 0 ? (
             <p className="text-[12px] text-muted-foreground">
-              没有正在执行的任务。提交入库、查询、对话或链接修复后，进度会显示在这里。
+              没有正在执行的任务。提交Ingest、查询、对话或链接修复后，进度会显示在这里。
             </p>
           ) : (
             <ul className="max-h-72 space-y-1.5 overflow-y-auto">

@@ -43,7 +43,7 @@ const TYPE_LABEL: Record<string, string> = {
   concept: "概念",
   entity: "实体",
   comparison: "对比",
-  source: "来源",
+  source: "Source",
 };
 
 function colorForType(group?: string): string {

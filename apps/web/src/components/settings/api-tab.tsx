@@ -5,52 +5,151 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+type KeyProvider = "openrouter" | "deepseek";
+
 type ApiKeyStatus = {
+  provider: KeyProvider;
   configured: boolean;
   source: "keychain" | "config" | "none";
   keychainAvailable: boolean;
   hint: string | null;
 };
 
-type TestResult =
-  | { ok: true; label: string | null; usageUsd: number; limitUsd: number | null }
-  | { ok: false; reason: string; message: string };
+type ApiKeyStatusMap = Record<KeyProvider, ApiKeyStatus>;
 
-// "view" = key is set, showing a masked read-only display
-// "edit" = entering a new key (either first-time paste or replace flow)
-type Mode = "view" | "edit";
+type TestResult = {
+  ok: boolean;
+  provider?: KeyProvider;
+  reason?: string;
+  message?: string;
+  label?: string | null;
+  usageUsd?: number | null;
+  limitUsd?: number | null;
+  modelCount?: number;
+};
+
+type ProviderMeta = {
+  id: KeyProvider;
+  title: string;
+  /** Text before the "get a key here" link. */
+  blurb: string;
+  keyUrl: string;
+  keyUrlLabel: string;
+  placeholder: string;
+  /** OpenRouter keys have a recognisable prefix; DeepSeek's are opaque. */
+  maskedPrefix: string;
+};
+
+const PROVIDERS: readonly ProviderMeta[] = [
+  {
+    id: "openrouter",
+    title: "OpenRouter API Key",
+    blurb: "一个密钥即可访问数百个模型（Claude、GPT、Gemini 等）。可在",
+    keyUrl: "https://openrouter.ai/keys",
+    keyUrlLabel: "openrouter.ai/keys",
+    placeholder: "sk-or-v1-...",
+    maskedPrefix: "sk-or-v1-",
+  },
+  {
+    id: "deepseek",
+    title: "DeepSeek API Key",
+    blurb:
+      "DeepSeek 官方接口，base URL 为 https://api.deepseek.com（不经由第三方路由）。可在",
+    keyUrl: "https://platform.deepseek.com/api_keys",
+    keyUrlLabel: "platform.deepseek.com",
+    placeholder: "sk-...",
+    maskedPrefix: "sk-",
+  },
+];
 
 export function ApiTab() {
-  const [status, setStatus] = useState<ApiKeyStatus | null>(null);
+  const [statuses, setStatuses] = useState<ApiKeyStatusMap | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
-  const [mode, setMode] = useState<Mode>("edit");
-  const [busy, setBusy] = useState<"save" | "delete" | "test" | null>(null);
-  const [flash, setFlash] = useState<string | null>(null);
-  const [testResult, setTestResult] = useState<TestResult | null>(null);
-
-  useEffect(() => {
-    void refresh();
-  }, []);
-
-  // Whenever status changes, default to the right mode: view if key set, edit
-  // if not. The user explicitly clicking Replace flips us back to edit.
-  useEffect(() => {
-    if (status?.configured) setMode("view");
-    else setMode("edit");
-  }, [status?.configured]);
+  const [keychainAvailable, setKeychainAvailable] = useState(true);
 
   async function refresh() {
     setLoadError(null);
     try {
       const res = await fetch("/api/config", { cache: "no-store" });
-      if (!res.ok) throw new Error(`/api/config returned ${res.status}`);
-      const json = (await res.json()) as ApiKeyStatus;
-      setStatus(json);
+      if (!res.ok) throw new Error(`/api/config 返回 ${res.status}`);
+      const json = (await res.json()) as {
+        statuses?: ApiKeyStatusMap;
+        keychainAvailable?: boolean;
+      };
+      if (json.statuses) {
+        setStatuses(json.statuses);
+        setKeychainAvailable(json.statuses.openrouter.keychainAvailable);
+      }
     } catch (err) {
       setLoadError((err as Error).message);
     }
   }
+
+  useEffect(() => {
+    void refresh();
+  }, []);
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h2 className="text-lg font-medium">API 密钥</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          密钥可用时保存在系统钥匙串中，否则保存在{" "}
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">~/.llm-wiki/config.json</code>{" "}
+          中（权限 0600）。每个提供方的密钥互相独立。
+        </p>
+      </div>
+
+      {loadError ? (
+        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {loadError}
+        </p>
+      ) : null}
+
+      {statuses === null ? (
+        <p className="text-sm text-muted-foreground">加载中…</p>
+      ) : (
+        PROVIDERS.map((meta) => (
+          <ProviderKeyCard
+            key={meta.id}
+            meta={meta}
+            status={statuses[meta.id]}
+            keychainAvailable={keychainAvailable}
+            onChanged={refresh}
+          />
+        ))
+      )}
+
+      <div className="rounded-md border border-border/70 bg-muted/30 p-3 text-xs text-muted-foreground">
+        要使用本地模型（Ollama）无需密钥：请在“模型”标签页把某个用途的提供方切换为
+        Ollama。Ollama 与 DeepSeek 的模型 id 与 OpenRouter 的{" "}
+        <code className="font-mono">provider/model</code> 写法不同，请不要混用。
+      </div>
+    </div>
+  );
+}
+
+function ProviderKeyCard({
+  meta,
+  status,
+  keychainAvailable,
+  onChanged,
+}: {
+  meta: ProviderMeta;
+  status: ApiKeyStatus;
+  keychainAvailable: boolean;
+  onChanged: () => Promise<void> | void;
+}) {
+  const [draft, setDraft] = useState("");
+  const [editing, setEditing] = useState(!status.configured);
+  const [busy, setBusy] = useState<"save" | "delete" | "test" | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
+
+  // A key appearing or disappearing (e.g. after save/remove) re-syncs the mode.
+  useEffect(() => {
+    setEditing(!status.configured);
+  }, [status.configured]);
 
   async function onSave(e: React.FormEvent) {
     e.preventDefault();
@@ -62,16 +161,13 @@ export function ApiTab() {
       const res = await fetch("/api/config", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ apiKey: draft.trim() }),
+        body: JSON.stringify({ apiKey: draft.trim(), provider: meta.id }),
       });
-      const json = (await res.json()) as ApiKeyStatus | { error: string };
-      if (!res.ok) throw new Error("error" in json ? json.error : `HTTP ${res.status}`);
-      setStatus(json as ApiKeyStatus);
+      const json = (await res.json()) as { source?: string; error?: string };
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
       setDraft("");
-      setMode("view");
-      setFlash(
-        `已保存到${(json as ApiKeyStatus).source === "keychain" ? "系统钥匙串" : "配置文件"}。`,
-      );
+      setFlash(`已保存到${json.source === "keychain" ? "系统钥匙串" : "配置文件"}。`);
+      await onChanged();
     } catch (err) {
       setFlash(`保存失败：${(err as Error).message}`);
     } finally {
@@ -80,17 +176,16 @@ export function ApiTab() {
   }
 
   async function onDelete() {
-    if (!confirm("要移除已保存的 OpenRouter API 密钥吗？")) return;
+    if (!confirm(`要移除已保存的 ${meta.title} 吗？`)) return;
     setBusy("delete");
     setFlash(null);
     setTestResult(null);
     try {
-      const res = await fetch("/api/config", { method: "DELETE" });
-      const json = (await res.json()) as ApiKeyStatus | { error: string };
-      if (!res.ok) throw new Error("error" in json ? json.error : `HTTP ${res.status}`);
-      setStatus(json as ApiKeyStatus);
-      setMode("edit");
-      setFlash("API 密钥已移除。");
+      const res = await fetch(`/api/config?provider=${meta.id}`, { method: "DELETE" });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      setFlash("密钥已移除。");
+      await onChanged();
     } catch (err) {
       setFlash(`删除失败：${(err as Error).message}`);
     } finally {
@@ -102,9 +197,12 @@ export function ApiTab() {
     setBusy("test");
     setTestResult(null);
     try {
-      const res = await fetch("/api/config/test", { method: "POST" });
-      const json = (await res.json()) as TestResult;
-      setTestResult(json);
+      const res = await fetch("/api/config/test", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider: meta.id }),
+      });
+      setTestResult((await res.json()) as TestResult);
     } catch (err) {
       setTestResult({ ok: false, reason: "network", message: (err as Error).message });
     } finally {
@@ -113,43 +211,30 @@ export function ApiTab() {
   }
 
   function maskedKey(hint: string | null): string {
-    // 8 leading chars + 16 dots + last 4. Looks like a real key, hides the
-    // actual middle. We don't store the raw key client-side so we reconstruct
-    // a representative shape using "sk-or-v1-" as the known prefix.
-    const prefix = "sk-or-v1-";
+    // Reconstruct a representative shape rather than storing the raw key
+    // client-side.
     const dots = "•".repeat(16);
-    return hint ? `${prefix}${dots}${hint}` : `${prefix}${dots}••••`;
+    return hint ? `${meta.maskedPrefix}${dots}${hint}` : `${meta.maskedPrefix}${dots}••••`;
   }
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-lg font-medium">OpenRouter API 密钥</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          可用时保存在系统钥匙串中，否则保存在{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-xs">~/.llm-wiki/config.json</code>{" "}
-          中，权限为 0600。可在{" "}
-          <a
-            className="underline underline-offset-2 hover:text-foreground"
-            href="https://openrouter.ai/keys"
-            target="_blank"
-            rel="noreferrer"
-          >
-            openrouter.ai/keys
-          </a>
-          获取密钥。
-        </p>
-      </div>
+    <section className="rounded-lg border border-border/70 p-4">
+      <h3 className="text-base font-medium">{meta.title}</h3>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {meta.blurb}
+        <a
+          className="underline underline-offset-2 hover:text-foreground"
+          href={meta.keyUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {meta.keyUrlLabel}
+        </a>
+        {" 获取密钥。"}
+      </p>
 
-      {loadError ? (
-        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {loadError}
-        </p>
-      ) : status === null ? (
-        <p className="text-sm text-muted-foreground">加载中…</p>
-      ) : mode === "view" && status.configured ? (
-        // ---- view mode: masked key, default actions ----------------------
-        <div className="space-y-3">
+      {status.configured && !editing ? (
+        <div className="mt-3 space-y-3">
           <div>
             <label className="mb-1 block text-sm font-medium">当前密钥</label>
             <div className="flex items-stretch gap-2">
@@ -164,7 +249,7 @@ export function ApiTab() {
                 variant="outline"
                 onClick={() => {
                   setDraft("");
-                  setMode("edit");
+                  setEditing(true);
                   setFlash(null);
                   setTestResult(null);
                 }}
@@ -193,24 +278,22 @@ export function ApiTab() {
           </div>
         </div>
       ) : (
-        // ---- edit mode: input new key ------------------------------------
-        <form onSubmit={onSave} className="space-y-3">
+        <form onSubmit={onSave} className="mt-3 space-y-3">
           <div>
-            <label className="mb-1 block text-sm font-medium" htmlFor="api-key">
+            <label className="mb-1 block text-sm font-medium" htmlFor={`api-key-${meta.id}`}>
               {status.configured ? "新密钥" : "粘贴你的密钥"}
             </label>
             <Input
-              id="api-key"
+              id={`api-key-${meta.id}`}
               type="password"
               autoComplete="off"
               spellCheck={false}
-              placeholder="sk-or-v1-..."
+              placeholder={meta.placeholder}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              autoFocus
               className="font-mono"
             />
-            {!status.keychainAvailable ? (
+            {!keychainAvailable ? (
               <p className="mt-1.5 text-xs text-muted-foreground">
                 注意：本系统不支持系统钥匙串。密钥将保存到你的主目录中一个权限受限的文件里。
               </p>
@@ -226,7 +309,7 @@ export function ApiTab() {
                 variant="ghost"
                 onClick={() => {
                   setDraft("");
-                  setMode("view");
+                  setEditing(false);
                   setFlash(null);
                 }}
                 disabled={busy !== null}
@@ -238,12 +321,12 @@ export function ApiTab() {
         </form>
       )}
 
-      {flash ? <p className="text-sm text-muted-foreground">{flash}</p> : null}
+      {flash ? <p className="mt-2 text-sm text-muted-foreground">{flash}</p> : null}
 
       {testResult ? (
         <div
           className={
-            "rounded-md px-3 py-2 text-sm " +
+            "mt-3 rounded-md px-3 py-2 text-sm " +
             (testResult.ok
               ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
               : "bg-destructive/10 text-destructive")
@@ -257,16 +340,21 @@ export function ApiTab() {
                   {" "}
                   账号：<strong>{testResult.label}</strong>。
                 </>
-              ) : null}{" "}
-              {testResult.limitUsd !== null
-                ? `已使用 $${testResult.usageUsd.toFixed(2)}，额度上限 $${testResult.limitUsd.toFixed(2)}。`
-                : `累计用量 $${testResult.usageUsd.toFixed(2)}。`}
+              ) : null}
+              {typeof testResult.modelCount === "number"
+                ? ` 该密钥可访问 ${testResult.modelCount} 个模型。`
+                : null}
+              {typeof testResult.usageUsd === "number"
+                ? testResult.limitUsd !== null && testResult.limitUsd !== undefined
+                  ? ` 已使用 $${testResult.usageUsd.toFixed(2)}，额度上限 $${testResult.limitUsd.toFixed(2)}。`
+                  : ` 累计用量 $${testResult.usageUsd.toFixed(2)}。`
+                : null}
             </span>
           ) : (
-            <span>{testResult.message}</span>
+            <span>{testResult.message ?? "测试失败。"}</span>
           )}
         </div>
       ) : null}
-    </div>
+    </section>
   );
 }

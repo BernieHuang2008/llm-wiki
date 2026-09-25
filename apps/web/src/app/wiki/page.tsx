@@ -30,7 +30,7 @@ const TYPE_LABEL: Record<TypeKey, string> = {
   concept: "概念",
   entity: "实体",
   comparison: "对比",
-  source: "来源",
+  source: "Source",
 };
 
 const TYPE_HEADING: Record<TypeKey, string> = {
@@ -38,7 +38,7 @@ const TYPE_HEADING: Record<TypeKey, string> = {
   concept: "概念",
   entity: "实体",
   comparison: "对比",
-  source: "来源",
+  source: "Source",
 };
 
 const TYPE_DESCRIPTION: Record<TypeKey, string> = {
@@ -46,7 +46,7 @@ const TYPE_DESCRIPTION: Record<TypeKey, string> = {
   concept: "思想、技术、框架与定理。",
   entity: "人物、组织、产品与地点。",
   comparison: "两个或多个事物的并列对比。",
-  source: "独立的来源摘要页面。",
+  source: "独立的Source摘要页面。",
 };
 
 function relativeDate(iso: string): string {
@@ -107,7 +107,7 @@ export default async function WikiIndexPage({
         <PageHeader
           eyebrow="知识库"
           title="Wiki"
-          description="由 LLM 维护的页面，按类型分组。智能体会基于你的来源构建并交叉链接它们。"
+          description="由 LLM 维护的页面，按类型分组。智能体会基于你的Source构建并交叉链接它们。"
         />
         <div className="rounded-lg border border-dashed border-border bg-card p-10 text-center">
           <p className="font-display text-h3 font-semibold">
@@ -119,9 +119,9 @@ export default async function WikiIndexPage({
               href="/sources"
               className="text-primary underline underline-offset-2"
             >
-              来源
+              Source
             </Link>{" "}
-            页面添加一个来源（粘贴文本、放入 PDF 或抓取 URL），智能体会将其编译为互相链接的页面。
+            页面添加一个Source（粘贴文本、放入 PDF 或抓取 URL），智能体会将其编译为互相链接的页面。
           </p>
         </div>
       </PageContainer>

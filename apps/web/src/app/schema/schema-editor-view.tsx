@@ -62,7 +62,7 @@ export function SchemaEditorView() {
         description={
           <>
             编辑你知识库文件夹中的 <code className="font-mono">CLAUDE.md</code>。schema
-            是 LLM 在每次入库/查询/体检调用时使用的契约。先前版本
+            是 LLM 在每次Ingest/查询/体检调用时使用的契约。先前版本
             保存在 <code className="font-mono">.llm-wiki/schema-history/</code>（最近 10 个）。
           </>
         }

@@ -130,7 +130,7 @@ export function IngestQueue({ refreshNonce }: { refreshNonce: number }) {
   if (active.length === 0 && previews.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        {error ? `无法读取任务队列：${error}` : "当前没有排队或执行中的入库任务。"}
+        {error ? `无法读取任务队列：${error}` : "当前没有排队或执行中的Ingest任务。"}
       </p>
     );
   }
@@ -183,7 +183,7 @@ export function IngestQueue({ refreshNonce }: { refreshNonce: number }) {
             <div>
               <strong>提案已生成，等待确认。</strong>
               <span className="ml-1">
-                审批开关已开启（设置 → 通用），尚未写入 wiki。来源：
+                审批开关已开启（设置 → 通用），尚未写入 wiki。Source：
                 <span className="font-medium"> {task.label}</span>
               </span>
             </div>
@@ -211,7 +211,7 @@ export function IngestQueue({ refreshNonce }: { refreshNonce: number }) {
                 放弃
               </Button>
               <span className="text-[11px] text-amber-800/70 dark:text-amber-200/70">
-                应用等同于一次正常的入库写入。
+                应用等同于一次正常的Ingest写入。
               </span>
             </div>
 

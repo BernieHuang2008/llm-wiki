@@ -58,7 +58,7 @@ type Action =
 const STATIC_NAV_ACTIONS: Action[] = [
   { type: "navigate", id: "go-wiki", label: "知识库", hint: "浏览页面", group: "前往", href: "/wiki" },
   { type: "navigate", id: "go-graph", label: "图谱", hint: "3D 知识视图", group: "前往", href: "/graph" },
-  { type: "navigate", id: "go-sources", label: "来源", hint: "添加来源", group: "前往", href: "/sources" },
+  { type: "navigate", id: "go-sources", label: "Source", hint: "添加Source", group: "前往", href: "/sources" },
   { type: "navigate", id: "go-query", label: "查询", hint: "提出一个问题", group: "前往", href: "/query" },
   { type: "navigate", id: "go-chats", label: "对话", hint: "开始或打开一个对话", group: "前往", href: "/chats" },
   { type: "navigate", id: "go-lint", label: "体检", hint: "知识库健康检查", group: "前往", href: "/lint" },

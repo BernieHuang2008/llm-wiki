@@ -18,16 +18,27 @@ export async function POST(req: Request) {
     body = {};
   }
 
-  const { key } = await getApiKey();
   const ctx = await openWikiContext();
   const provider = ctx.settings.defaultModels.lint.provider;
-  if (provider === "openrouter" && !key) {
-    return NextResponse.json(
-      { error: "OpenRouter API key not configured. Set one in Settings." },
-      { status: 400 },
-    );
+  // Ollama needs no key; the hosted providers do.
+  let apiKey = "ollama";
+  if (provider !== "ollama") {
+    const result = await getApiKey(provider);
+    if (!result.key) {
+      ctx.db.close();
+      return NextResponse.json(
+        {
+          error:
+            provider === "deepseek"
+              ? "未配置 DeepSeek API Key，请在“设置 → API”中填写。"
+              : "未配置 OpenRouter API Key，请在“设置 → API”中填写。",
+        },
+        { status: 400 },
+      );
+    }
+    apiKey = result.key;
   }
-  const client = createClient(key || "", provider);
+  const client = createClient(apiKey, provider);
   const model = body.model ?? ctx.settings.defaultModels.lint.model;
 
   try {

@@ -40,7 +40,7 @@ export async function POST(req: Request) {
     return respond(result);
   } catch (err) {
     return NextResponse.json(
-      { ok: false, error: (err as Error).message ?? "提交入库任务失败" },
+      { ok: false, error: (err as Error).message ?? "提交Ingest任务失败" },
       { status: 500 },
     );
   }

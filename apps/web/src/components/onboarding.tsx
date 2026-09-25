@@ -333,7 +333,7 @@ function TopicStep({
       </h2>
       <p className="mt-3 text-body font-serif text-muted-foreground">
         用一句话描述它的范围。LLM 在每次操作中都会读取它 ——
-        入库、查询、体检 —— 所以要具体，而不是泛泛而谈。
+        Ingest、查询、体检 —— 所以要具体，而不是泛泛而谈。
       </p>
       <Input
         autoFocus
@@ -556,18 +556,18 @@ function TourStep({
       <ul className="mt-6 space-y-3">
         <TourRow
           numeral="①"
-          title="来源"
+          title="Source"
           body="粘贴一篇文章、拖入 PDF，或抓取一个 URL。智能体会读取它并撰写页面。"
         />
         <TourRow
           numeral="②"
           title="知识库"
-          body="浏览 LLM 撰写、按类型分组的页面。每个页面都有完整的反向链接与来源脉络。"
+          body="浏览 LLM 撰写、按类型分组的页面。每个页面都有完整的反向链接与Source脉络。"
         />
         <TourRow
           numeral="③"
           title="图谱"
-          body="以网络形式呈现知识的 3D 视图 —— 页面是节点，交叉链接是边。随着入库增多，看它不断生长。"
+          body="以网络形式呈现知识的 3D 视图 —— 页面是节点，交叉链接是边。随着Ingest增多，看它不断生长。"
         />
         <TourRow
           numeral="④"
@@ -599,7 +599,7 @@ function TourStep({
             跳过
           </button>
           <Button onClick={onFinish} disabled={busy}>
-            {busy ? "…" : "带我去来源页 →"}
+            {busy ? "…" : "带我去Source页 →"}
           </Button>
         </div>
       </div>
@@ -743,7 +743,7 @@ function MinimalOnboarding({
               {needsKey ? "1. " : ""}这个知识库是关于什么的？
             </h2>
             <p className="mt-1 text-ui text-muted-foreground">
-              一句话。LLM 在每次入库和查询时都会读取它，所以越具体越好。
+              一句话。LLM 在每次Ingest和查询时都会读取它，所以越具体越好。
             </p>
             <Input
               value={topic}

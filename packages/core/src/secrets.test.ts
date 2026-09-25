@@ -156,6 +156,45 @@ describe("setApiKey input validation", () => {
   });
 });
 
+describe("multiple providers", () => {
+  it("keeps DeepSeek and OpenRouter keys independent", async () => {
+    await setApiKey("sk-or-v1-openrouter", "openrouter");
+    await setApiKey("sk-deepseek-secret", "deepseek");
+
+    expect((await getApiKey("openrouter")).key).toBe("sk-or-v1-openrouter");
+    expect((await getApiKey("deepseek")).key).toBe("sk-deepseek-secret");
+    // Different keychain accounts, so neither overwrote the other.
+    expect(keytarStore.get("openrouter")).toBe("sk-or-v1-openrouter");
+    expect(keytarStore.get("deepseek")).toBe("sk-deepseek-secret");
+  });
+
+  it("defaults to OpenRouter when no provider is given", async () => {
+    await setApiKey("sk-or-v1-default");
+    expect((await getApiKey()).key).toBe("sk-or-v1-default");
+    expect((await getApiKey("deepseek")).key).toBeNull();
+  });
+
+  it("removes only the requested provider's key", async () => {
+    await setApiKey("sk-or-v1-a", "openrouter");
+    await setApiKey("sk-deepseek-b", "deepseek");
+
+    await deleteApiKey("deepseek");
+    expect((await getApiKey("deepseek")).key).toBeNull();
+    expect((await getApiKey("openrouter")).key).toBe("sk-or-v1-a");
+  });
+
+  it("stores the DeepSeek key in its own config field when keytar is unusable", async () => {
+    keytarBehavior = "throw-on-probe";
+    _resetKeytarCacheForTests();
+    await setApiKey("sk-deepseek-file", "deepseek");
+
+    const cfg = await loadGlobalConfig();
+    expect(cfg.deepseekKey).toBe("sk-deepseek-file");
+    expect(cfg.openrouterKey).toBeUndefined();
+    expect((await getApiKey("deepseek")).source).toBe("config");
+  });
+});
+
 it("imports config module without warnings", async () => {
   // Sanity check that readFile is still importable; ensures no module-level
   // hoist regression.

@@ -3,7 +3,28 @@ import { loadGlobalConfig, saveGlobalConfig, globalConfigPath } from "./config";
 // OS keychain identifiers. The "service" namespace lets keytar coexist with
 // other apps that use the system keychain.
 const SERVICE = "llm-wiki";
-const ACCOUNT = "openrouter";
+
+/**
+ * Providers that need a user-supplied key. Ollama runs locally and takes a
+ * placeholder, so it is deliberately absent.
+ */
+export type KeyProvider = "openrouter" | "deepseek";
+
+export const KEY_PROVIDERS: readonly KeyProvider[] = ["openrouter", "deepseek"] as const;
+
+/** Keychain account name per provider. */
+function accountFor(provider: KeyProvider): string {
+  return provider;
+}
+
+/** Config-file field per provider (the keychain-unavailable fallback). */
+function configFieldFor(provider: KeyProvider): "openrouterKey" | "deepseekKey" {
+  return provider === "deepseek" ? "deepseekKey" : "openrouterKey";
+}
+
+export function isKeyProvider(value: unknown): value is KeyProvider {
+  return value === "openrouter" || value === "deepseek";
+}
 
 export type ApiKeySource = "keychain" | "config" | "none";
 
@@ -42,36 +63,41 @@ export async function isKeychainAvailable(): Promise<boolean> {
   return (await loadKeytar()) !== null;
 }
 
-export async function getApiKey(): Promise<ApiKeyResult> {
+export async function getApiKey(provider: KeyProvider = "openrouter"): Promise<ApiKeyResult> {
   const keytar = await loadKeytar();
   if (keytar) {
     try {
-      const key = await keytar.getPassword(SERVICE, ACCOUNT);
+      const key = await keytar.getPassword(SERVICE, accountFor(provider));
       if (key) return { key, source: "keychain", keychainAvailable: true };
     } catch {
       // fall through to config-file lookup
     }
   }
   const cfg = await loadGlobalConfig();
-  if (cfg.openrouterKey) {
-    return { key: cfg.openrouterKey, source: "config", keychainAvailable: keytar !== null };
+  const fromFile = cfg[configFieldFor(provider)];
+  if (fromFile) {
+    return { key: fromFile, source: "config", keychainAvailable: keytar !== null };
   }
   return { key: null, source: "none", keychainAvailable: keytar !== null };
 }
 
-export async function setApiKey(key: string): Promise<ApiKeyResult> {
+export async function setApiKey(
+  key: string,
+  provider: KeyProvider = "openrouter",
+): Promise<ApiKeyResult> {
   if (!key.trim()) throw new Error("setApiKey: key must be non-empty");
+  const field = configFieldFor(provider);
   const keytar = await loadKeytar();
   if (keytar) {
     try {
-      await keytar.setPassword(SERVICE, ACCOUNT, key);
+      await keytar.setPassword(SERVICE, accountFor(provider), key);
       // Successful keychain write — purge any stale copy from config.json so
       // the key never lives in two places.
       const cfg = await loadGlobalConfig();
-      if (cfg.openrouterKey) {
-        const { openrouterKey: _drop, ...rest } = cfg;
-        void _drop;
-        await saveGlobalConfig({ ...rest, version: 1 });
+      if (cfg[field]) {
+        const next = { ...cfg };
+        delete next[field];
+        await saveGlobalConfig({ ...next, version: 1 });
       }
       return { key, source: "keychain", keychainAvailable: true };
     } catch {
@@ -79,24 +105,25 @@ export async function setApiKey(key: string): Promise<ApiKeyResult> {
     }
   }
   const cfg = await loadGlobalConfig();
-  await saveGlobalConfig({ ...cfg, openrouterKey: key });
+  await saveGlobalConfig({ ...cfg, [field]: key });
   return { key, source: "config", keychainAvailable: keytar !== null };
 }
 
-export async function deleteApiKey(): Promise<void> {
+export async function deleteApiKey(provider: KeyProvider = "openrouter"): Promise<void> {
+  const field = configFieldFor(provider);
   const keytar = await loadKeytar();
   if (keytar) {
     try {
-      await keytar.deletePassword(SERVICE, ACCOUNT);
+      await keytar.deletePassword(SERVICE, accountFor(provider));
     } catch {
       // ignore — the key may not have been set via keychain
     }
   }
   const cfg = await loadGlobalConfig();
-  if (cfg.openrouterKey) {
-    const { openrouterKey: _drop, ...rest } = cfg;
-    void _drop;
-    await saveGlobalConfig({ ...rest, version: 1 });
+  if (cfg[field]) {
+    const next = { ...cfg };
+    delete next[field];
+    await saveGlobalConfig({ ...next, version: 1 });
   }
 }
 

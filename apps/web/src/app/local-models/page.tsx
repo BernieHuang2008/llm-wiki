@@ -55,10 +55,10 @@ export default function LocalModelsPage() {
         </p>
         <ul className="space-y-1">
           <li>
-            <strong>隐私很重要。</strong>来源文档永不离开你的机器。适用于机密研究、法律笔记、医疗记录，以及任何你不会粘进 ChatGPT 的内容。
+            <strong>隐私很重要。</strong>Source文档永不离开你的机器。适用于机密研究、法律笔记、医疗记录，以及任何你不会粘进 ChatGPT 的内容。
           </li>
           <li>
-            <strong>你会入库很多内容。</strong>如果你要给知识库喂进数百份来源，
+            <strong>你会Ingest很多内容。</strong>如果你要给知识库喂进数百份Source，
             按 token 计费的成本会累积起来。本地在模型一次性下载完成后按查询计费为零
             （只花电费）。
           </li>
@@ -91,7 +91,7 @@ export default function LocalModelsPage() {
           </li>
         </ul>
         <p>
-          <strong>混用完全没问题。</strong>你可以把入库设为 Ollama
+          <strong>混用完全没问题。</strong>你可以把Ingest设为 Ollama
           （重、你不想盯着看）而把对话设为 OpenRouter（交互式、
           想要前沿质量）。LLM Wiki 按槽位选择。
         </p>
@@ -263,7 +263,7 @@ ollama pull llava
             </Link>
           </li>
           <li>
-            对任意操作槽位（入库 / 查询 / 对话 / 体检 / 视觉）：
+            对任意操作槽位（Ingest / 查询 / 对话 / 体检 / 视觉）：
             把<strong>提供商</strong>下拉框从{" "}
             <em>OpenRouter</em> 改为 <em>Ollama（本地）</em>
           </li>
@@ -277,7 +277,7 @@ ollama pull llava
           </li>
         </ol>
         <p>
-          你可以按槽位混用提供商。常见做法：入库用 Ollama
+          你可以按槽位混用提供商。常见做法：Ingest用 Ollama
           （慢但免费，适合批量作业），对话用 OpenRouter（交互时又快又
           聪明），视觉用在你场景下视觉模型更好的那一个。
         </p>
@@ -326,7 +326,7 @@ llm-wiki start`}
           />
           <Trouble
             symptom="响应非常慢（低于 5 token/秒，读起来很难受）"
-            fix="你的硬件低于该模型的舒适运行区间。试试更小的模型（用 phi3 而不是 mistral，用 mistral 而不是 mixtral）。或者接受批量操作（入库、体检）可以正常跑、只有对话难受这一现实 —— 对话改用 OpenRouter。"
+            fix="你的硬件低于该模型的舒适运行区间。试试更小的模型（用 phi3 而不是 mistral，用 mistral 而不是 mixtral）。或者接受批量操作（Ingest、体检）可以正常跑、只有对话难受这一现实 —— 对话改用 OpenRouter。"
           />
           <Trouble
             symptom="操作过程中内存不足 / 系统疯狂使用交换分区"
@@ -469,7 +469,7 @@ const HARDWARE_TABLE = [
     ram: "8 / 8 GB",
     mac: "50+ t/s",
     cpu: "15-25 t/s",
-    useFor: "轻量对话、快速入库",
+    useFor: "轻量对话、快速Ingest",
   },
   {
     model: "moondream",

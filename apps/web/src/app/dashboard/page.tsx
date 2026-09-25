@@ -140,7 +140,7 @@ export default async function DashboardPage() {
       <PageHeader
         eyebrow="跨所有知识库"
         title="知识库健康"
-        description="各知识库统计 —— 页面 / 来源 / 对话数量、累计 LLM 花费、最后修改时间。按新旧排序。点击任意知识库即可切换进去。"
+        description="各知识库统计 —— 页面 / Source / 对话数量、累计 LLM 花费、最后修改时间。按新旧排序。点击任意知识库即可切换进去。"
       />
 
       {/* Roll-up across every wiki. Useful for the "how much have I actually
@@ -149,7 +149,7 @@ export default async function DashboardPage() {
       <section className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <RollupTile label="知识库总数" value={wikis.length.toString()} />
         <RollupTile label="页面总数" value={totals.pageCount.toString()} />
-        <RollupTile label="来源总数" value={totals.sourceCount.toString()} />
+        <RollupTile label="Source总数" value={totals.sourceCount.toString()} />
         <RollupTile label="累计花费" value={formatCost(totals.costCents)} />
       </section>
 
@@ -215,7 +215,7 @@ function WikiCard({ wiki }: { wiki: WikiHealth }) {
       {wiki.initialized ? (
         <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
           <Stat label="页面" value={wiki.pageCount.toString()} />
-          <Stat label="来源" value={wiki.sourceCount.toString()} />
+          <Stat label="Source" value={wiki.sourceCount.toString()} />
           <Stat label="对话" value={wiki.chatCount.toString()} />
           <Stat label="花费" value={formatCost(wiki.costCents)} />
           <Stat label="最后修改" value={formatRelative(wiki.lastTouchedMs)} />

@@ -53,7 +53,7 @@ export default function HelpPage() {
         <ul className="space-y-2">
           <Layer
             name="raw/"
-            what="你的来源，原封不动。无论你粘贴或上传了什么，都逐字节保留。应用永不删除它们。"
+            what="你的Source，原封不动。无论你粘贴或上传了什么，都逐字节保留。应用永不删除它们。"
           />
           <Layer
             name="wiki/"
@@ -69,8 +69,8 @@ export default function HelpPage() {
         </p>
         <ul className="space-y-2">
           <Op
-            name="入库"
-            what="读取一份新来源 → 撰写/更新知识库页面、刷新索引、记录变更。"
+            name="Ingest"
+            what="读取一份新Source → 撰写/更新知识库页面、刷新索引、记录变更。"
           />
           <Op
             name="查询"
@@ -107,7 +107,7 @@ export default function HelpPage() {
           </li>
           <li>
             <strong>创建新知识库</strong> —— 填写主题 + 文件夹路径，点击“创建并切换”。
-            文件夹会被创建，schema 会初始化，你会落在仪表盘上，可以开始添加来源。
+            文件夹会被创建，schema 会初始化，你会落在仪表盘上，可以开始添加Source。
           </li>
         </ul>
         <p>
@@ -161,12 +161,12 @@ export default function HelpPage() {
       <Section
         id="sources"
         eyebrow="向知识库添加内容"
-        title="来源 —— 把内容送进去"
+        title="Source —— 把内容送进去"
       >
         <p>
           前往{" "}
           <Link href="/sources" className="text-primary underline underline-offset-2">
-            来源
+            Source
           </Link>{" "}
           并在顶部选择一种模式：
         </p>
@@ -183,16 +183,16 @@ export default function HelpPage() {
           </li>
           <li>
             <strong>URL</strong> —— 抓取页面，用 Mozilla 的 Readability
-            去掉导航/广告/侧栏，入库干净的正文。
+            去掉导航/广告/侧栏，Ingest干净的正文。
           </li>
         </ul>
         <p>
-          入库前页面会显示<strong>成本预估</strong>，避免意外。
-          点击<strong>入库</strong>；约 10–30 秒后，你会看到新增页面、更新页面，
+          Ingest前页面会显示<strong>成本预估</strong>，避免意外。
+          点击<strong>Ingest</strong>；约 10–30 秒后，你会看到新增页面、更新页面，
           以及 LLM 标出的任何矛盾的摘要。
         </p>
         <p>
-          表单上方，<strong>已入库来源</strong>会列出你添加的一切，包含格式、大小、日期，
+          表单上方，<strong>已IngestSource</strong>会列出你添加的一切，包含格式、大小、日期，
           以及它为多少个知识库页面做出了贡献。点击任意一行即可查看原始内容 + 完整脉络。
         </p>
       </Section>
@@ -207,14 +207,14 @@ export default function HelpPage() {
             /wiki
           </Link>{" "}
           以卡片形式按类型分组显示你的页面（总览 → 概念 →
-          实体 → 对比 → 来源）。每张卡片显示标题、简短摘要、标签，
+          实体 → 对比 → Source）。每张卡片显示标题、简短摘要、标签，
           以及最后修改时间。
         </p>
         <p>点击任意卡片，你会看到：</p>
         <ul className="space-y-1">
           <li>页面正文，以易读的散文形式渲染。</li>
           <li>
-            底部的<strong>来源</strong> —— 链接到 LLM 据以编译此页面的原始输入。
+            底部的<strong>Source</strong> —— 链接到 LLM 据以编译此页面的原始输入。
           </li>
           <li>
             <strong>反向链接</strong> —— 所有提到本页的其他知识库页面。也就是列表形式的图谱视图。
@@ -249,7 +249,7 @@ export default function HelpPage() {
             适合持续深入的调查。每个对话都是 <code>chats/</code> 下一个真正的 markdown
             文件。可置顶、重命名、在文件夹间移动。每条助手消息都有自己的
             <strong>保存为知识库页面</strong>
-            {" "}链接；整个对话在标题栏有一个<strong>入库 → 知识库</strong>{" "}
+            {" "}链接；整个对话在标题栏有一个<strong>Ingest → 知识库</strong>{" "}
             按钮，让综合结论变成持久的页面。
           </SubCard>
         </div>
@@ -318,7 +318,7 @@ export default function HelpPage() {
         </p>
         <p>
           <strong>节点按页面类型着色</strong>，而不是按标签或文件夹。LLM
-          会在入库时为每个页面指定类型，因此图表让你一眼看出知识库中知识的构成：
+          会在Ingest时为每个页面指定类型，因此图表让你一眼看出知识库中知识的构成：
         </p>
         <ul className="space-y-1">
           <li>
@@ -339,7 +339,7 @@ export default function HelpPage() {
           </li>
           <li>
             <span className="font-medium" style={{ color: "#64748b" }}>石板灰</span>
-            {" "}—— 来源型页面
+            {" "}—— Source型页面
           </li>
         </ul>
         <p>
@@ -354,7 +354,7 @@ export default function HelpPage() {
           以便你收藏或分享聚焦后的视图。
         </p>
         <p>
-          随着你入库更多来源，你会看到图谱生长：新节点弹入位置，
+          随着你Ingest更多Source，你会看到图谱生长：新节点弹入位置，
           任何提到新页面的既有页面都会与之形成边。
         </p>
       </Section>
@@ -398,7 +398,7 @@ export default function HelpPage() {
             <strong>通用</strong> —— 知识库主题、主题外观（浅色 / 深色 / 跟随系统）。
           </li>
           <li>
-            <strong>模型</strong> —— 为每项操作（入库、查询、对话、体检、视觉）选择提供商（OpenRouter 或本地 Ollama）和模型。你可以混用云端模型与本地推理。下拉框提供精选选项，另有自定义 slug 输入框以支持其他模型。如果你在任何位置选择了 Ollama，请参阅{" "}
+            <strong>模型</strong> —— 为每项操作（Ingest、查询、对话、体检、视觉）选择提供商（OpenRouter 或本地 Ollama）和模型。你可以混用云端模型与本地推理。下拉框提供精选选项，另有自定义 slug 输入框以支持其他模型。如果你在任何位置选择了 Ollama，请参阅{" "}
             <Link href="/local-models" className="text-primary underline underline-offset-2">
               本地模型设置指南
             </Link>{" "}
@@ -415,7 +415,7 @@ export default function HelpPage() {
           </li>
         </ul>
         <p>
-          经验法则：入库用便宜快速的模型（你会频繁运行它），
+          经验法则：Ingest用便宜快速的模型（你会频繁运行它），
           查询 / 体检 / 对话用更聪明的模型（面向用户的回答）。
         </p>
       </Section>
@@ -459,7 +459,7 @@ export default function HelpPage() {
           显示当前启用知识库的各项数字。位于{" "}
           <Link href="/dashboard" className="text-primary underline underline-offset-2">/dashboard</Link>{" "}
           的仪表盘则并排显示你打开过的每个知识库的相同数字
-          —— 页面、来源、对话、LLM 花费、最后修改时间。按新旧排序，
+          —— 页面、Source、对话、LLM 花费、最后修改时间。按新旧排序，
           让你真正在用的知识库浮到顶部。
         </p>
         <p>
@@ -578,7 +578,7 @@ llm-wiki start       # back up and running`}
           />
           <Trouble
             symptom='"LLM response failed schema validation"'
-            fix="模型返回了格式错误的 JSON。再次点击入库 —— 小模型偶尔会跑偏。如果反复发生，把入库槽位换成更聪明的模型（Sonnet、GPT-4o）。"
+            fix="模型返回了格式错误的 JSON。再次点击Ingest —— 小模型偶尔会跑偏。如果反复发生，把Ingest槽位换成更聪明的模型（Sonnet、GPT-4o）。"
           />
           <Trouble
             symptom="体检反复标出同一个已修复的问题"
@@ -699,7 +699,7 @@ const TOC: Array<{ id: string; label: string }> = [
   { id: "overview", label: "心智模型 —— 三个层次、三项操作" },
   { id: "wikis", label: "多个知识库 —— 切换与创建" },
   { id: "setup", label: "首次运行：主题 + API 密钥" },
-  { id: "sources", label: "来源 —— 把内容送进去" },
+  { id: "sources", label: "Source —— 把内容送进去" },
   { id: "wiki", label: "知识库 —— 浏览你的页面" },
   { id: "query", label: "查询与对话" },
   { id: "lint", label: "体检 —— 知识库健康" },

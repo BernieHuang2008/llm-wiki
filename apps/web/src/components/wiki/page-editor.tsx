@@ -15,7 +15,7 @@ const PAGE_TYPES = ["entity", "concept", "source", "comparison", "overview"] as 
 const TYPE_LABEL: Record<(typeof PAGE_TYPES)[number], string> = {
   entity: "实体",
   concept: "概念",
-  source: "来源",
+  source: "Source",
   comparison: "对比",
   overview: "概览",
 };

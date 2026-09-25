@@ -63,7 +63,7 @@ export async function Footer({ className = "" }: { className?: string }) {
         <Link
           href="/dashboard"
           className="hover:text-foreground"
-          title="每个 wiki 的页面、来源、对话数量，以及所有 wiki 的累计 LLM 支出"
+          title="每个 wiki 的页面、Source、对话数量，以及所有 wiki 的累计 LLM 支出"
         >
           仪表盘
         </Link>

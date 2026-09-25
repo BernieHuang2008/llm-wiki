@@ -45,9 +45,9 @@ export default async function GraphPage({
               href="/sources"
               className="text-primary underline underline-offset-2"
             >
-              来源
+              Source
             </Link>{" "}
-            页面添加一个来源。智能体会在此创建页面，随着你持续摄取，图谱会不断生长。
+            页面添加一个Source。智能体会在此创建页面，随着你持续摄取，图谱会不断生长。
           </p>
         </div>
       </PageContainer>

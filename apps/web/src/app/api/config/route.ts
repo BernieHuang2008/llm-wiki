@@ -1,14 +1,23 @@
 import { NextResponse } from "next/server";
 
-import { deleteApiKey, getApiKeyStatus, setApiKey } from "@/lib/server-config";
+import {
+  asKeyProvider,
+  deleteApiKey,
+  getApiKeyStatuses,
+  setApiKey,
+} from "@/lib/server-config";
 
 // Avoid any caching: these endpoints reflect mutable on-disk + keychain state.
 export const dynamic = "force-dynamic";
 
+// GET /api/config — key status for every provider that needs one, so the
+// Settings → API tab can list OpenRouter and DeepSeek side by side.
 export async function GET() {
   try {
-    const status = await getApiKeyStatus();
-    return NextResponse.json(status);
+    const statuses = await getApiKeyStatuses();
+    // Kept alongside the map for older clients that read the flat shape.
+    const openrouter = statuses.openrouter;
+    return NextResponse.json({ ...openrouter, statuses });
   } catch (err) {
     return NextResponse.json(
       { error: (err as Error).message ?? "failed to read config" },
@@ -17,38 +26,44 @@ export async function GET() {
   }
 }
 
+// POST /api/config — body: { apiKey: string, provider?: "openrouter" | "deepseek" }
 export async function POST(req: Request) {
-  let body: { apiKey?: string } = {};
+  let body: { apiKey?: unknown; provider?: unknown } = {};
   try {
-    body = (await req.json()) as { apiKey?: string };
+    body = (await req.json()) as { apiKey?: unknown; provider?: unknown };
   } catch {
-    return NextResponse.json({ error: "expected JSON body" }, { status: 400 });
+    return NextResponse.json({ error: "需要 JSON 请求体" }, { status: 400 });
   }
 
   const key = body.apiKey;
   if (typeof key !== "string" || key.trim().length === 0) {
-    return NextResponse.json({ error: "apiKey must be a non-empty string" }, { status: 400 });
+    return NextResponse.json({ error: "apiKey 不能为空" }, { status: 400 });
   }
 
   try {
-    const status = await setApiKey(key);
-    return NextResponse.json(status);
+    const provider = asKeyProvider(body.provider ?? "openrouter");
+    const status = await setApiKey(key, provider);
+    return NextResponse.json({ ...status, statuses: await getApiKeyStatuses() });
   } catch (err) {
     return NextResponse.json(
       { error: (err as Error).message ?? "failed to save API key" },
-      { status: 500 },
+      { status: 400 },
     );
   }
 }
 
-export async function DELETE() {
+// DELETE /api/config?provider=deepseek — defaults to OpenRouter.
+export async function DELETE(req: Request) {
   try {
-    const status = await deleteApiKey();
-    return NextResponse.json(status);
+    const provider = asKeyProvider(
+      new URL(req.url).searchParams.get("provider") ?? "openrouter",
+    );
+    const status = await deleteApiKey(provider);
+    return NextResponse.json({ ...status, statuses: await getApiKeyStatuses() });
   } catch (err) {
     return NextResponse.json(
       { error: (err as Error).message ?? "failed to delete API key" },
-      { status: 500 },
+      { status: 400 },
     );
   }
 }

@@ -16,9 +16,9 @@ export default function AboutPage() {
           一个由 LLM 为你维护的个人维基百科。
         </h1>
         <p className="mt-5 max-w-2xl text-body font-serif text-muted-foreground">
-          你放入来源 —— 论文、文章、笔记、URL。LLM 智能体会阅读它们，撰写互相链接的页面，
-          维护索引，并在新来源改变全貌时修订旧页面。结果是这样一个知识库：它会<em>不断累积</em>——
-          每一份来源都让每个页面更丰富，而不只是多出一页。
+          你放入Source —— 论文、文章、笔记、URL。LLM 智能体会阅读它们，撰写互相链接的页面，
+          维护索引，并在新Source改变全貌时修订旧页面。结果是这样一个知识库：它会<em>不断累积</em>——
+          每一份Source都让每个页面更丰富，而不只是多出一页。
         </p>
         <a
           href="https://www.producthunt.com/products/llm-wiki-cc?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-llm-wiki-cc"
@@ -47,8 +47,8 @@ export default function AboutPage() {
           >
             勾画了一个范式
           </a>
-          ：面向个人知识库，把 LLM 当作知识工程师而不是搜索引擎。三个层次（原始来源、由 LLM
-          维护的知识库、LLM 每次调用都会读取的 schema）加上三项操作（入库、查询、体检）
+          ：面向个人知识库，把 LLM 当作知识工程师而不是搜索引擎。三个层次（原始Source、由 LLM
+          维护的知识库、LLM 每次调用都会读取的 schema）加上三项操作（Ingest、查询、体检）
           构成一个闭环，你喂给它的越多，它就越好。
         </p>
         <blockquote className="my-4 border-l-2 border-primary/40 pl-4 font-serif italic text-foreground/80">
@@ -65,12 +65,12 @@ export default function AboutPage() {
         <ul className="space-y-1">
           <li>
             <strong>知识库本身</strong> —— 按类型分组的 markdown 页面（总览、概念、实体、
-            对比、来源），带完整的反向链接和来源脉络。像读教科书一样阅读它，检索它，编辑它。
+            对比、Source），带完整的反向链接和Source脉络。像读教科书一样阅读它，检索它，编辑它。
           </li>
           <li>
             <strong>3D 图谱</strong>，包含每一个页面和每一条交叉链接 —— 与 Obsidian
             的图谱视图同引擎、同观感，但按<em>页面类型</em>着色，而不是自由标签。随着你不断
-            入库来源，亲眼看着知识实实在在生长；孤岛和枢纽在空间上一目了然。
+            IngestSource，亲眼看着知识实实在在生长；孤岛和枢纽在空间上一目了然。
           </li>
         </ul>
       </Section>
@@ -276,7 +276,7 @@ const AUDIENCE: Array<{ who: string; what: string }> = [
   },
   {
     who: "律师 / 律师助理",
-    what: "围绕某个案件或某个监管领域建立可用的知识。每一条论断都能追溯到磁盘上的来源文档。",
+    what: "围绕某个案件或某个监管领域建立可用的知识。每一条论断都能追溯到磁盘上的Source文档。",
   },
   {
     who: "医生 / 临床工作者",
@@ -288,11 +288,11 @@ const AUDIENCE: Array<{ who: string; what: string }> = [
   },
   {
     who: "教育工作者",
-    what: "构建一份随你入库新读物而自我更新的课程大纲。交叉引用始终有效。",
+    what: "构建一份随你Ingest新读物而自我更新的课程大纲。交叉引用始终有效。",
   },
   {
     who: "独立开发者 / 技术创始人",
-    what: "为你要进入的市场建立私密知识库。入库竞品文档、客户笔记、你自己的决策。",
+    what: "为你要进入的市场建立私密知识库。Ingest竞品文档、客户笔记、你自己的决策。",
   },
 ];
 
@@ -329,7 +329,7 @@ const STACK: Array<{ label: string; value: string }> = [
   },
   { label: "检索", value: "对页面正文 + frontmatter 标题/标签使用 FTS5" },
   {
-    label: "入库",
+    label: "Ingest",
     value:
       "mammoth（DOCX）、officeparser（XLSX/PPTX）、@mozilla/readability（HTML/URL）、面向 PDF/图片的视觉模型",
   },

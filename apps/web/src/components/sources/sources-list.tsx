@@ -93,7 +93,7 @@ export function SourcesList({ refreshNonce, onChanged }: Props) {
     setBusyId(s.id);
     setActionFlash(null);
     setError(null);
-    console.log(`%c[入库重试] 重新提交来源："${s.title}"`, "color: #3b82f6; font-weight: bold;");
+    console.log(`%c[Ingest重试] 重新提交Source："${s.title}"`, "color: #3b82f6; font-weight: bold;");
     try {
       const res = await fetch(`/api/sources/${s.id}/retry`, {
         method: "POST",
@@ -106,7 +106,7 @@ export function SourcesList({ refreshNonce, onChanged }: Props) {
       await fetchSources();
       onChanged?.();
     } catch (err) {
-      console.error(`[入库重试失败] "${s.title}"：${(err as Error).message}`);
+      console.error(`[Ingest重试失败] "${s.title}"：${(err as Error).message}`);
       setError((err as Error).message);
     } finally {
       setBusyId(null);
@@ -115,8 +115,8 @@ export function SourcesList({ refreshNonce, onChanged }: Props) {
 
   async function onDelete(s: SourceItem) {
     const msg = s.inFlight
-      ? `移除"${s.title}"？正在执行的入库任务会被取消，原始文件会移动到 .llm-wiki/trash/raw/（30 天内可恢复）。`
-      : `移除"${s.title}"（尚未成功入库）？原始文件会移动到 .llm-wiki/trash/raw/（30 天内可恢复）。`;
+      ? `移除"${s.title}"？正在执行的Ingest任务会被取消，原始文件会移动到 .llm-wiki/trash/raw/（30 天内可恢复）。`
+      : `移除"${s.title}"（尚未成功Ingest）？原始文件会移动到 .llm-wiki/trash/raw/（30 天内可恢复）。`;
     if (!confirm(msg)) return;
 
     setBusyId(s.id);
@@ -139,19 +139,19 @@ export function SourcesList({ refreshNonce, onChanged }: Props) {
   if (error && sources === null) {
     return (
       <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-        无法读取来源列表：{error}
+        无法读取Source列表：{error}
       </p>
     );
   }
 
   if (sources === null) {
-    return <p className="text-sm text-muted-foreground">正在载入来源…</p>;
+    return <p className="text-sm text-muted-foreground">正在载入Source…</p>;
   }
 
   if (sources.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        暂无需处理的来源。已成功入库的条目已从列表中隐去，可在
+        暂无需处理的Source。已成功Ingest的条目已从列表中隐去，可在
         <Link href="/wiki" className="mx-1 underline underline-offset-2">
           Wiki
         </Link>
@@ -167,8 +167,8 @@ export function SourcesList({ refreshNonce, onChanged }: Props) {
     <div className="space-y-3">
       <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
         {failedCount > 0
-          ? `${failedCount} 个来源入库失败，可点击"重试"重新排队。`
-          : `${waitingCount} 个来源正在后台排队或执行，可随时关闭页面。`}
+          ? `${failedCount} 个SourceIngest失败，可点击"重试"重新排队。`
+          : `${waitingCount} 个Source正在后台排队或执行，可随时关闭页面。`}
       </p>
 
       {actionFlash ? (

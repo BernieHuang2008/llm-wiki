@@ -33,9 +33,9 @@ export function isActive(task: PublicTask): boolean {
 }
 
 export const TASK_KIND_LABEL: Record<TaskKind, string> = {
-  ingest_file: "文件入库",
-  ingest_url: "网址入库",
-  ingest_text: "文本入库",
+  ingest_file: "文件Ingest",
+  ingest_url: "网址Ingest",
+  ingest_text: "文本Ingest",
   query: "查询",
   chat: "对话",
   link_fix: "链接修复",
@@ -52,9 +52,9 @@ export const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
 
 /** "正在查询…" style label for an in-flight task of a given kind. */
 export const TASK_BUSY_LABEL: Record<TaskKind, string> = {
-  ingest_file: "正在入库…",
-  ingest_url: "正在入库…",
-  ingest_text: "正在入库…",
+  ingest_file: "正在Ingest…",
+  ingest_url: "正在Ingest…",
+  ingest_text: "正在Ingest…",
   query: "正在查询…",
   chat: "正在生成回复…",
   link_fix: "正在处理…",
