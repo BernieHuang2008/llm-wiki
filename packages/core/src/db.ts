@@ -47,6 +47,26 @@ CREATE TABLE IF NOT EXISTS tasks (
 CREATE INDEX IF NOT EXISTS tasks_status_created ON tasks (status, created_at);
 CREATE INDEX IF NOT EXISTS tasks_source ON tasks (source_id);
 
+-- Durable history of query and lint runs.
+--
+-- These are app records, not knowledge: the wiki layer stays plain markdown
+-- (log.md keeps the one-line history), while the *full* result of each run is
+-- kept here so "recent queries" / "recent lint runs" can be reopened and acted
+-- on. The label column holds the query text or the lint health summary; the
+-- output column holds the complete validated response.
+CREATE TABLE IF NOT EXISTS run_history (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  label TEXT NOT NULL,
+  model TEXT,
+  input TEXT,
+  output TEXT,
+  error TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS run_history_kind_created ON run_history (kind, created_at);
+
 CREATE TABLE IF NOT EXISTS pages (
   slug TEXT PRIMARY KEY,
   title TEXT NOT NULL,

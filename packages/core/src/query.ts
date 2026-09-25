@@ -2,6 +2,7 @@ import { callLLM, estimateCostCents, type LlmClient } from "@llm-wiki/llm";
 
 import type { Db } from "./db";
 import { searchPages } from "./db-pages";
+import { recordRun } from "./db-runs";
 import { insertUsage } from "./db-usage";
 import { buildQueryPrompt } from "./prompts/query";
 import type { ExistingPageSnippet } from "./prompts/ingest";
@@ -25,11 +26,21 @@ export type QueryWikiOptions = {
   onProgress?: (event: QueryProgressEvent) => void;
 };
 
+export type QueryWikiResult = {
+  response: QueryResponse;
+  /** Id in `run_history`; the UI uses it to open this run again later. */
+  runId: string;
+  modelUsed: string;
+};
+
 /**
  * Answers a one-off question against the wiki. Pure read path — never writes
  * pages. The caller decides whether to promote suggestedNewPage via createPage.
+ *
+ * Returns the answer plus the `run_history` id, so the UI can reopen it from
+ * "recent queries" without re-asking.
  */
-export async function queryWiki(opts: QueryWikiOptions): Promise<QueryResponse> {
+export async function queryWiki(opts: QueryWikiOptions): Promise<QueryWikiResult> {
   if (!opts.question.trim()) {
     throw new Error("queryWiki: question must be non-empty");
   }
@@ -70,8 +81,18 @@ export async function queryWiki(opts: QueryWikiOptions): Promise<QueryResponse> 
     created_at: new Date().toISOString(),
   });
 
+  // Persist the full answer so the query can be reopened from "recent
+  // queries" — only the token counts would otherwise survive.
+  const runId = recordRun(opts.db, {
+    kind: "query",
+    label: opts.question,
+    model: result.model,
+    input: { question: opts.question, pagesUsed: result.data.pagesUsed },
+    output: result.data,
+  });
+
   opts.onProgress?.({ phase: "done", result: result.data });
-  return result.data;
+  return { response: result.data, runId, modelUsed: result.model };
 }
 
 // ---- internals ------------------------------------------------------------

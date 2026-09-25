@@ -8,6 +8,7 @@ export * from "./db-pages";
 export * from "./db-sources";
 export { getChat, insertChat, updateChat, listChatRows } from "./db-chats";
 export * from "./db-usage";
+export * from "./db-runs";
 export * from "./db-sync";
 // db-chats's bare CRUD names collide with chat.ts's high-level operations
 // (deleteChat, getChat). Re-export only what callers need at the top level;

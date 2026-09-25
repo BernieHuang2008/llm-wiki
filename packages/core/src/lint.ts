@@ -5,6 +5,7 @@ import { callLLM, estimateCostCents, type LlmClient } from "@llm-wiki/llm";
 
 import type { Db } from "./db";
 import { listPageRows } from "./db-pages";
+import { recordRun } from "./db-runs";
 import { insertUsage } from "./db-usage";
 import { extractWikiLinks } from "./links";
 import { buildLintPrompt, type DeterministicFinding } from "./prompts/lint";
@@ -49,6 +50,8 @@ export type LintResult = Omit<LintResponse, "issues"> & {
   totalPages: number;
   /** The lint run immediately before this one, if any. Powers the "X → Y issues" delta in the UI. */
   previousRun: PreviousLintSummary | null;
+  /** Id in `run_history`; the UI uses it to reopen this run later. */
+  runId: string;
 };
 
 /**
@@ -202,7 +205,9 @@ export async function lintWiki(opts: LintWikiOptions): Promise<LintResult> {
 
   opts.onProgress?.({ phase: "done" });
 
-  return {
+  // `runId` is assigned after the insert, so the stored payload cannot contain
+  // itself. Everything else about the run is kept verbatim.
+  const stored: Omit<LintResult, "runId"> = {
     issues,
     suggestedQuestions,
     overallHealth,
@@ -210,6 +215,18 @@ export async function lintWiki(opts: LintWikiOptions): Promise<LintResult> {
     totalPages: snippets.length,
     previousRun,
   };
+
+  // log.md keeps only a one-line summary, which is not enough to reopen a run
+  // and apply fixes to it. Store the full result alongside it.
+  const runId = recordRun(opts.db, {
+    kind: "lint",
+    label: `${issues.length} issue${issues.length === 1 ? "" : "s"} — ${overallHealth}`,
+    model: opts.model,
+    input: { totalPages: snippets.length, truncated },
+    output: stored,
+  });
+
+  return { ...stored, runId };
 }
 
 /**

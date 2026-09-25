@@ -42,11 +42,28 @@ type LintResult = {
 type LintSuccess = { ok: true; model: string; result: LintResult };
 type LintFailure = { ok?: false; error: string; type?: string };
 
-type LintHistoryEntry = {
-  stamp: string;
-  totalIssues: number;
-  health: "excellent" | "good" | "fair" | "needs-work" | null;
+/** A stored run from `run_history`, as returned by /api/runs. */
+type StoredRun = {
+  id: string;
+  kind: "query" | "lint";
+  label: string;
+  model: string | null;
+  created_at: string;
 };
+
+function relativeFromIso(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return iso;
+  const diffMin = Math.floor((Date.now() - t) / 60_000);
+  if (diffMin < 1) return "刚刚";
+  if (diffMin < 60) return `${diffMin} 分钟前`;
+  const hours = Math.floor(diffMin / 60);
+  if (hours < 24) return `${hours} 小时前`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return "昨天";
+  if (days < 7) return `${days} 天前`;
+  return iso.slice(0, 10);
+}
 
 const HEALTH_STYLES: Record<LintResult["overallHealth"], string> = {
   excellent: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
@@ -151,11 +168,18 @@ async function awaitFixTask(taskId: string): Promise<Record<string, unknown>> {
   }
 }
 
-export function LintView() {
+export function LintView({
+  initialResult = null,
+  initialModel = null,
+}: {
+  /** A previously stored run: lets /lint/runs/[id] reopen it for fixing. */
+  initialResult?: LintResult | null;
+  initialModel?: string | null;
+} = {}) {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
-  const [result, setResult] = useState<LintResult | null>(null);
-  const [model, setModel] = useState<string | null>(null);
+  const [result, setResult] = useState<LintResult | null>(initialResult);
+  const [model, setModel] = useState<string | null>(initialModel);
   const [error, setError] = useState<string | null>(null);
   const [fixedKeys, setFixedKeys] = useState<Map<string, FixedState>>(new Map());
   // A Set, not a single key: every fix now runs as its own background task, so
@@ -166,16 +190,16 @@ export function LintView() {
   const [bulkBusy, setBulkBusy] = useState<null | "rebuild-index" | "fix-all-broken">(null);
   const [bulkFlash, setBulkFlash] = useState<string | null>(null);
 
-  // Lint history — loaded on mount + re-fetched after every successful run
-  // so the "Recent runs" panel reflects the just-appended log entry.
-  const [history, setHistory] = useState<LintHistoryEntry[] | null>(null);
+  // Recent lint runs — the stored rows, so each one can be reopened with the
+  // issues (and the fix buttons) intact. Refreshed after every run.
+  const [recentRuns, setRecentRuns] = useState<StoredRun[] | null>(null);
 
   const refreshHistory = useCallback(async () => {
     try {
-      const res = await fetch("/api/lint/history?limit=10", { cache: "no-store" });
+      const res = await fetch("/api/runs?kind=lint", { cache: "no-store" });
       if (!res.ok) return;
-      const data = (await res.json()) as { history: LintHistoryEntry[] };
-      setHistory(data.history);
+      const data = (await res.json()) as { runs: StoredRun[] };
+      setRecentRuns(data.runs);
     } catch {
       // non-fatal — the panel just stays empty
     }
@@ -432,64 +456,40 @@ export function LintView() {
         </div>
       ) : null}
 
-      {/* Always-visible "Recent runs" panel — pulled from log.md so the
-          trend is readable before re-running. Loads on mount, refreshes
-          after every successful lint. */}
-      {history !== null ? (
+      {/* Recent lint runs — every row opens the stored run so its issues can be
+          inspected and fixed. Refreshes after each new run. */}
+      {recentRuns !== null ? (
         <section className="mt-6 rounded-md border border-border/70 bg-card p-4">
           <h3 className="mb-2 text-caption font-semibold uppercase tracking-wider text-muted-foreground">
-            Recent runs
+            最近体检
           </h3>
-          {history.length === 0 ? (
+          {recentRuns.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No lint runs yet. Click <strong>Run lint</strong> to record the first one — the
-              count + health rating gets appended to <code className="font-mono">log.md</code>{" "}
-              so you can track wiki health over time.
+              还没有体检记录。点击 <strong>开始体检</strong> 跑第一次 —— 结果会完整保存下来，
+              之后可以随时点开复查并直接修复。同时会在{" "}
+              <code className="font-mono">log.md</code> 里追加一行摘要。
             </p>
           ) : (
-            <ul className="space-y-1.5 text-sm">
-              {history.map((h, i) => {
-                const prevCount = history[i + 1]?.totalIssues;
-                const delta =
-                  prevCount === undefined ? null : h.totalIssues - prevCount;
-                return (
-                  <li
-                    key={`${h.stamp}-${i}`}
-                    className="flex flex-wrap items-baseline gap-2 text-muted-foreground"
+            <ul className="divide-y divide-border/60 text-sm">
+              {recentRuns.map((run) => (
+                <li key={run.id}>
+                  <Link
+                    href={`/lint/runs/${run.id}`}
+                    className="flex flex-wrap items-baseline gap-2 rounded px-1 py-1.5 hover:bg-accent/60"
                   >
-                    <span className="font-mono text-[11px]">{h.stamp}</span>
-                    <span className="text-foreground">
-                      {h.totalIssues} issue{h.totalIssues === 1 ? "" : "s"}
-                    </span>
-                    {h.health ? (
-                      <span
-                        className={cn(
-                          "rounded px-1.5 py-0 text-[10px] uppercase tracking-wider",
-                          HEALTH_STYLES[h.health],
-                        )}
-                      >
-                        {h.health}
-                      </span>
-                    ) : null}
-                    {delta !== null && delta !== 0 ? (
-                      <span
-                        className={
-                          "text-[11px] " +
-                          (delta < 0
-                            ? "text-emerald-700 dark:text-emerald-300"
-                            : "text-amber-700 dark:text-amber-300")
-                        }
-                      >
-                        {delta < 0 ? "−" : "+"}
-                        {Math.abs(delta)} vs previous
+                    <span className="text-foreground">{run.label}</span>
+                    {run.model ? (
+                      <span className="font-mono text-[11px] text-muted-foreground">
+                        {run.model}
                       </span>
                     ) : null}
                     <span className="text-[11px] text-muted-foreground/70">
-                      ({relativeFromLogStamp(h.stamp)})
+                      {relativeFromIso(run.created_at)}
                     </span>
-                  </li>
-                );
-              })}
+                    <span className="ml-auto text-[11px] text-primary">查看详情 →</span>
+                  </Link>
+                </li>
+              ))}
             </ul>
           )}
           <div className="mt-3 border-t border-border/60 pt-2 text-[11px] text-muted-foreground">

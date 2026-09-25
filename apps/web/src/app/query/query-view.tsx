@@ -5,42 +5,19 @@ import { useEffect, useRef, useState } from "react";
 
 import { CostPreview } from "@/components/cost-preview";
 import { PageContainer, PageHeader } from "@/components/page-shell";
+import { QueryAnswer, type StoredQueryResponse } from "@/components/query/query-answer";
+import { RecentQueries } from "@/components/query/recent-queries";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { MarkdownView } from "@/components/wiki/markdown-view";
 import { fetchTask, isActive, type PublicTask } from "@/lib/task-client";
 import { useWikiSettings } from "@/lib/use-wiki-settings";
-import { cn } from "@/lib/utils";
 
-type QueryResponse = {
-  answer: string;
-  pagesUsed: string[];
-  suggestedNewPage: null | {
-    slug: string;
-    title: string;
-    content: string;
-    reason: string;
-  };
-  confidence: "high" | "medium" | "low";
-  caveats: string[];
-};
+type QueryResponse = StoredQueryResponse;
 
 type QuerySuccess = {
   ok: true;
   model: string;
   response: QueryResponse;
-};
-
-const CONFIDENCE_LABEL: Record<QueryResponse["confidence"], string> = {
-  high: "高",
-  medium: "中",
-  low: "低",
-};
-
-const CONFIDENCE_STYLES: Record<QueryResponse["confidence"], string> = {
-  high: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  medium: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
-  low: "bg-destructive/10 text-destructive",
 };
 
 type QueryTaskOutput = { model?: string; response?: QueryResponse; provider?: string };
@@ -57,6 +34,10 @@ export function QueryView() {
   const [promoting, setPromoting] = useState(false);
   const [promoteResult, setPromoteResult] = useState<{ slug: string } | null>(null);
   const [promoteError, setPromoteError] = useState<string | null>(null);
+
+  // Bumped when a query finishes so the recent-queries list picks it up
+  // without a page reload.
+  const [historyNonce, setHistoryNonce] = useState(0);
 
   // Stops the polling loop when the user navigates away. The *task* keeps
   // running on the server either way — that is the point of the executor.
@@ -127,6 +108,9 @@ export function QueryView() {
           } else {
             setError(task.error ?? "查询任务失败。");
           }
+          // Either way the run row may now exist (success) or not; refreshing
+          // costs one request and keeps the list honest.
+          setHistoryNonce((n) => n + 1);
           return;
         }
         await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -224,92 +208,24 @@ export function QueryView() {
       ) : null}
 
       {result ? (
-        <section className="mt-10 space-y-6">
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span
-              className={cn(
-                "rounded-full px-2 py-0.5 font-medium uppercase tracking-wide",
-                CONFIDENCE_STYLES[result.response.confidence],
-              )}
-            >
-              置信度：{CONFIDENCE_LABEL[result.response.confidence]}
-            </span>
-            <span className="text-muted-foreground">模型：{result.model}</span>
-          </div>
-
-          <article className="rounded-lg border border-border bg-card p-6 text-card-foreground">
-            <MarkdownView content={result.response.answer} knownSlugs={knownSlugs} />
-          </article>
-
-          {result.response.caveats.length > 0 ? (
-            <div>
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                注意事项
-              </h3>
-              <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                {result.response.caveats.map((c, i) => (
-                  <li key={i}>{c}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
-          {result.response.pagesUsed.length > 0 ? (
-            <div>
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                引用的页面
-              </h3>
-              <ul className="mt-2 flex flex-wrap gap-2">
-                {result.response.pagesUsed.map((slug) => (
-                  <li key={slug}>
-                    <Link
-                      href={`/wiki/${slug}`}
-                      className="rounded-full border border-border px-2 py-0.5 text-xs hover:bg-accent"
-                    >
-                      {slug}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
-          {result.response.suggestedNewPage ? (
-            <div className="rounded-lg border border-dashed border-border bg-secondary/30 p-4">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                建议新建的页面
-              </h3>
-              <p className="mt-2">
-                <strong>{result.response.suggestedNewPage.title}</strong>{" "}
-                <span className="text-xs text-muted-foreground">
-                  （{result.response.suggestedNewPage.slug}）
-                </span>
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {result.response.suggestedNewPage.reason}
-              </p>
-
-              {promoteResult ? (
-                <p className="mt-3 text-sm text-emerald-700 dark:text-emerald-300">
-                  已保存。{" "}
-                  <Link href={`/wiki/${promoteResult.slug}`} className="underline">
-                    打开页面 →
-                  </Link>
-                </p>
-              ) : (
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <Button onClick={onPromote} disabled={promoting} variant="outline">
-                    {promoting ? "保存中…" : "保存为 wiki 页面"}
-                  </Button>
-                  {promoteError ? (
-                    <span className="text-sm text-destructive">{promoteError}</span>
-                  ) : null}
-                </div>
-              )}
-            </div>
-          ) : null}
-        </section>
+        <QueryAnswer
+          response={result.response}
+          model={result.model}
+          knownSlugs={knownSlugs}
+          onPromote={() => void onPromote()}
+          promoting={promoting}
+          promoteResult={promoteResult}
+          promoteError={promoteError}
+        />
       ) : null}
+
+      <section className="mt-12 rounded-lg border border-border/70 bg-card p-5">
+        <div className="mb-3 flex items-baseline justify-between">
+          <h2 className="font-display text-h3 font-semibold">最近查询</h2>
+          <p className="text-caption text-muted-foreground">点开任意一条可查看完整回答与引用</p>
+        </div>
+        <RecentQueries refreshNonce={historyNonce} />
+      </section>
     </PageContainer>
   );
 }

@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { openInMemoryDb, type Db } from "./db";
 import { indexPageForSearch, upsertPage } from "./db-pages";
+import { listRuns } from "./db-runs";
 import { listUsageRows } from "./db-usage";
 import { createPage, PageAlreadyExistsError } from "./editor";
 import { queryWiki } from "./query";
@@ -94,9 +95,12 @@ describe("queryWiki", () => {
       model: "stub/sonnet",
     });
 
-    expect(r.answer).toContain("[[shors-algorithm]]");
-    expect(r.pagesUsed).toEqual(["shors-algorithm"]);
-    expect(r.confidence).toBe("high");
+    expect(r.response.answer).toContain("[[shors-algorithm]]");
+    expect(r.response.pagesUsed).toEqual(["shors-algorithm"]);
+    expect(r.response.confidence).toBe("high");
+    // The run is persisted so the answer can be reopened later.
+    expect(r.runId).toBeTruthy();
+    expect(listRuns(db, { kind: "query" })[0]?.id).toBe(r.runId);
 
     const usage = listUsageRows(db);
     expect(usage).toHaveLength(1);
@@ -126,8 +130,8 @@ describe("queryWiki", () => {
       model: "stub/sonnet",
     });
 
-    expect(r.suggestedNewPage?.slug).toBe("quantum-error-correction");
-    expect(r.caveats).toHaveLength(1);
+    expect(r.response.suggestedNewPage?.slug).toBe("quantum-error-correction");
+    expect(r.response.caveats).toHaveLength(1);
   });
 
   it("rejects an empty question", async () => {

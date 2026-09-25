@@ -37,6 +37,7 @@ import {
   listUsageRows,
 } from "./db-usage";
 import { META_DB_FILENAME, openDb, openInMemoryDb, runMigrations, type Db } from "./db";
+import { countRuns, getRun, listRuns, recordRun } from "./db-runs";
 import {
   claimNextTask,
   createTask,
@@ -61,6 +62,7 @@ const ALL_TABLES = [
   "usage",
   "response_cache",
   "tasks",
+  "run_history",
 ];
 
 function tableNames(db: Db): string[] {
@@ -505,5 +507,72 @@ describe("background tasks", () => {
     const closed = getTask(db, task.id);
     expect(closed?.status).toBe("failed");
     expect(closed?.error).toBe("已被重试取代");
+  });
+});
+
+describe("run history", () => {
+  let db: Db;
+  beforeEach(() => {
+    db = openInMemoryDb();
+  });
+  afterEach(() => {
+    db.close();
+  });
+
+  it("round-trips the full output payload", () => {
+    const id = recordRun(db, {
+      kind: "query",
+      label: "什么是量子纠缠？",
+      model: "deepseek-flash",
+      input: { question: "什么是量子纠缠？" },
+      output: { answer: "……", pagesUsed: ["quantum-entanglement"], confidence: "high" },
+    });
+
+    const run = getRun(db, id);
+    expect(run?.kind).toBe("query");
+    expect(run?.label).toBe("什么是量子纠缠？");
+    expect((run?.output as { answer?: string }).answer).toBe("……");
+    expect((run?.output as { pagesUsed?: string[] }).pagesUsed).toEqual(["quantum-entanglement"]);
+  });
+
+  it("lists newest first and filters by kind", () => {
+    // Two runs can share a millisecond; insertion order must still decide.
+    const q1 = recordRun(db, { kind: "query", label: "first" });
+    const l1 = recordRun(db, { kind: "lint", label: "0 issues — excellent" });
+    const q2 = recordRun(db, { kind: "query", label: "second" });
+
+    expect(listRuns(db, { kind: "query" }).map((r) => r.id)).toEqual([q2, q1]);
+    expect(listRuns(db, { kind: "lint" }).map((r) => r.id)).toEqual([l1]);
+    expect(listRuns(db).map((r) => r.id)).toEqual([q2, l1, q1]);
+  });
+
+  it("honours the limit and the time window", () => {
+    for (let i = 0; i < 5; i++) recordRun(db, { kind: "query", label: `q${i}` });
+    expect(listRuns(db, { kind: "query", limit: 2 })).toHaveLength(2);
+
+    // A window that starts in the future excludes everything.
+    const future = new Date(Date.now() + 60_000).toISOString();
+    expect(listRuns(db, { kind: "query", since: future })).toEqual([]);
+    expect(countRuns(db, "query", future)).toBe(0);
+    expect(countRuns(db, "query")).toBe(5);
+  });
+
+  it("keeps a failed run's reason instead of dropping the row", () => {
+    const id = recordRun(db, { kind: "lint", label: "失败", error: "模型返回了无效 JSON" });
+    expect(getRun(db, id)?.error).toBe("模型返回了无效 JSON");
+  });
+
+  it("survives a malformed payload without breaking the list", () => {
+    const id = recordRun(db, { kind: "query", label: "broken" });
+    db.prepare(`UPDATE run_history SET output = ? WHERE id = ?`).run("{not json", id);
+    const rows = listRuns(db, { kind: "query" });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.output).toBeNull();
+  });
+
+  it("rejects an unknown kind read back from the DB", () => {
+    const id = recordRun(db, { kind: "query", label: "x" });
+    db.prepare(`UPDATE run_history SET kind = ? WHERE id = ?`).run("bogus", id);
+    expect(() => getRun(db, id)).toThrow(/unknown kind/);
   });
 });

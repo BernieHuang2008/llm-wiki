@@ -599,6 +599,9 @@ async function runLint(task: TaskRow, ctx: WikiContext, signal: AbortSignal): Pr
   finishTask(db, task.id, {
     model: capture.model() ?? model,
     provider,
+    // `runId` lets the UI link straight to the stored run instead of
+    // re-deriving it from log.md.
+    runId: result.runId,
     result,
   });
 }
@@ -611,7 +614,7 @@ async function runQuery(task: TaskRow, ctx: WikiContext, signal: AbortSignal): P
   const capture = captureClientModel(createClient(await requireApiKey(provider), provider, signal));
 
   progress(db, task.id, "正在检索 wiki 并生成回答…");
-  const response = await queryWiki({
+  const outcome = await queryWiki({
     question: input.question,
     wikiPath,
     db,
@@ -624,7 +627,8 @@ async function runQuery(task: TaskRow, ctx: WikiContext, signal: AbortSignal): P
     model: capture.model() ?? model,
     provider,
     question: input.question,
-    response,
+    runId: outcome.runId,
+    response: outcome.response,
   });
 }
 
