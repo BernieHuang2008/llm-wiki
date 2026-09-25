@@ -8,6 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
+// Declared locally rather than imported from @llm-wiki/core: this is a client
+// component, and a type-only import would still pull the server package into
+// the client module graph for no benefit.
+type KeyProvider = "openrouter" | "deepseek";
+
 type Props = {
   needsTopic: boolean;
   needsKey: boolean;
@@ -20,6 +25,32 @@ type Props = {
    * spin up a new wiki later that's missing one of those.
    */
   isFirstRun: boolean;
+  /**
+   * Which provider's key is actually missing. The gate can be tripped by a
+   * DeepSeek-backed slot just as easily as an OpenRouter one, and asking for
+   * the wrong field would leave the user unable to satisfy it.
+   */
+  requiredProvider: KeyProvider;
+  /** Slot whose gate sent the user here (e.g. "chat"), for an honest message. */
+  blockedSlot: string | null;
+};
+
+const PROVIDER_LABEL: Record<KeyProvider, string> = {
+  openrouter: "OpenRouter",
+  deepseek: "DeepSeek",
+};
+
+const PROVIDER_KEY_URL: Record<KeyProvider, { href: string; label: string }> = {
+  openrouter: { href: "https://openrouter.ai/keys", label: "openrouter.ai/keys" },
+  deepseek: { href: "https://platform.deepseek.com/api_keys", label: "platform.deepseek.com" },
+};
+
+const SLOT_LABEL: Record<string, string> = {
+  ingest: "Ingest（来源）",
+  query: "查询",
+  chat: "对话",
+  lint: "体检",
+  vision: "视觉",
 };
 
 type Step = "welcome" | "topic" | "key" | "tour";
@@ -87,7 +118,10 @@ function FirstRunWizard(props: Props) {
         const res = await fetch("/api/config", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ apiKey: keyToSave.trim() }),
+          body: JSON.stringify({
+            apiKey: keyToSave.trim(),
+            provider: props.requiredProvider,
+          }),
         });
         if (!res.ok) {
           const j = (await res.json().catch(() => ({}))) as { error?: string };

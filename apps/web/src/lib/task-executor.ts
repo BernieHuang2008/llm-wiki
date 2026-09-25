@@ -26,7 +26,6 @@ import {
   getSource,
   ingestSource,
   ingestVisionSource,
-  MAX_INGEST_CONCURRENCY,
   markSourceFailed,
   markSourceIngested,
   pruneFinishedTasks,
@@ -73,9 +72,16 @@ import {
  * Ingest lanes. This is a *ceiling*, not the concurrency actually used: each
  * lane re-reads `settings.ingestConcurrency` before claiming work, so lowering
  * the setting takes effect without a restart and raising it never needs more
- * lanes than the maximum the settings allow (10).
+ * lanes than the maximum the settings allow.
+ *
+ * The literal is deliberate — `MAX_INGEST_CONCURRENCY` is re-exported from
+ * another package, and reading it here would evaluate that package while this
+ * module is still initialising. Under webpack's chunked server bundle that
+ * produces "Cannot access '…' before initialization" the moment a route
+ * imports this file. `taskExecutorMaxIngestLanes()` exists so a test can keep
+ * this value pinned to the core constant.
  */
-const MAX_INGEST_LANES = MAX_INGEST_CONCURRENCY;
+const MAX_INGEST_LANES = 10;
 /** Query/chat/link lanes; kept small so a local provider is not swamped. */
 const SIDE_LANES = 2;
 /** Ceiling for the non-ingest lanes, matching their lane count. */
@@ -120,6 +126,15 @@ const globalKey = "__llmWikiTaskExecutor";
 type GlobalWithExecutor = typeof globalThis & { [globalKey]?: State };
 const g = globalThis as GlobalWithExecutor;
 
+/**
+ * Starts the worker lanes.
+ *
+ * Deliberately a plain exported function with **no module-scope side effect**:
+ * this file and `task-service` import each other, webpack puts the whole cycle
+ * in one chunk, and calling an imported binding while that chunk is still
+ * evaluating throws "Cannot access '…' before initialization". Callers invoke
+ * this after their own module body has finished (see `ensureTaskExecutor`).
+ */
 export function startTaskExecutor(): void {
   if (!isNodeRuntime()) return;
   const state = (g[globalKey] ??= {
@@ -134,9 +149,17 @@ export function startTaskExecutor(): void {
   }
 }
 
-// Starting the executor is what lets a task outlive its request, so it is
-// hooked into every wiki-context open (see registerWikiContextHook).
-registerWikiContextHook(startTaskExecutor);
+/**
+ * Registers the "first wiki context open starts the executor" hook and starts
+ * the lanes immediately. Safe to call any number of times.
+ *
+ * `startTaskExecutor` is referenced lazily inside the closure rather than
+ * passed directly, so nothing here touches an imported binding at module scope.
+ */
+export function ensureTaskExecutor(): void {
+  registerWikiContextHook(() => startTaskExecutor());
+  startTaskExecutor();
+}
 
 function isNodeRuntime(): boolean {
   return typeof process !== "undefined" && !!process.versions?.node;
@@ -145,6 +168,15 @@ function isNodeRuntime(): boolean {
 /** Total worker lanes currently running. Diagnostics only. */
 export function taskExecutorLaneCount(): number {
   return MAX_INGEST_LANES + SIDE_LANES;
+}
+
+/**
+ * The ingest lane ceiling. Exported so a test can assert it still matches
+ * core's `MAX_INGEST_CONCURRENCY` — the two must agree, but this module cannot
+ * import the constant (see the note on MAX_INGEST_LANES).
+ */
+export function taskExecutorMaxIngestLanes(): number {
+  return MAX_INGEST_LANES;
 }
 
 // ---- lanes ----------------------------------------------------------------

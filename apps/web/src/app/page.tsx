@@ -7,6 +7,7 @@ import {
   listPageRows,
   listSourceRows,
   loadGlobalConfig,
+  type KeyProvider,
 } from "@llm-wiki/core";
 
 import { Onboarding } from "@/components/onboarding";
@@ -17,7 +18,7 @@ export const dynamic = "force-dynamic";
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: { needsKey?: string };
+  searchParams: { needsKey?: string; provider?: string; slot?: string };
 }) {
   const ctx = await openWikiContext();
   let pageCount = 0;
@@ -51,6 +52,11 @@ export default async function HomePage({
   ]);
   const needsTopic = topic.trim().length === 0;
   const needsKey = searchParams.needsKey === "1";
+  // `requireSetup` sends the provider it was missing, so the key step asks for
+  // the right field. Falling back to OpenRouter keeps old links working.
+  const requiredProvider: KeyProvider =
+    searchParams.provider === "deepseek" ? "deepseek" : "openrouter";
+  const blockedSlot = searchParams.slot?.trim() ? searchParams.slot.trim() : null;
   // `onboardingCompletedAt` absent means either (a) brand-new install or
   // (b) the user just clicked Settings → About → "Replay welcome tour",
   // which clears the flag. In both cases we want the 4-step wizard, even
@@ -65,6 +71,8 @@ export default async function HomePage({
         initialTopic={topic}
         wikiPath={wikiPath}
         isFirstRun={isFirstRun}
+        requiredProvider={requiredProvider}
+        blockedSlot={blockedSlot}
       />
     );
   }

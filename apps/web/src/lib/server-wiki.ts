@@ -15,11 +15,13 @@ import {
   globalConfigPath,
   initWikiFolder,
   loadWikiSettings,
+  missingKeyProvider,
   openDb,
   purgeOldTrash,
   syncWikiToDb,
   wikiSettingsPath,
   type Db,
+  type KeyProvider,
   type WikiSettings,
 } from "@llm-wiki/core";
 
@@ -77,37 +79,14 @@ export type WikiContext = {
 let onWikiContextOpened: (() => void) | null = null;
 
 export function registerWikiContextHook(hook: () => void): void {
-  hookRegistered = true;
   onWikiContextOpened = hook;
+  // Start immediately as well: on the first request the hook is registered
+  // during module evaluation, before `openWikiContext` reaches the call below.
   try {
     hook();
   } catch {
     // Starting the executor is best-effort; a request must never fail for it.
   }
-}
-
-let hookRegistered = false;
-let hookWarningEmitted = false;
-
-/**
- * True once the background task executor has loaded and registered itself.
- *
- * Callers that create tasks assert this: if the executor module ever drops out
- * of the server bundle again (which is exactly how every queued task silently
- * sat unclaimed the first time), the failure should be loud and immediate
- * instead of looking like a slow model.
- */
-export function isTaskExecutorRegistered(): boolean {
-  return hookRegistered;
-}
-
-/** One-shot console warning; safe to call on every task submission. */
-export function warnIfExecutorMissing(): void {
-  if (hookRegistered || hookWarningEmitted) return;
-  hookWarningEmitted = true;
-  console.error(
-    "[task-executor] 后台任务执行器未注册——任务会一直停留在队列中。请确认 @/lib/task-executor 被导入。",
-  );
 }
 
 /**
@@ -193,25 +172,46 @@ export async function openWikiContext(): Promise<WikiContext> {
  * Pages that don't: `/`, `/about`, `/help`, `/developers`, `/settings`
  * (the user needs to be able to reach Settings to configure things).
  */
-export async function requireSetup(slot?: keyof WikiSettings["defaultModels"]): Promise<void> {
-  const settings = await loadWikiSettings(resolveWikiPath());
+export type ModelSlotName = keyof WikiSettings["defaultModels"];
 
-  let needsKey = false;
+export type SetupStatus = {
+  needsTopic: boolean;
+  /** Provider whose key is missing for the gated slot, if any. */
+  missingKeyProvider: KeyProvider | null;
+};
+
+/**
+ * "Is this wiki ready to run the given operation?" — one implementation, used
+ * by both the page gate and the onboarding wizard.
+ *
+ * A slot backed by Ollama never needs a key; a slot backed by OpenRouter needs
+ * an OpenRouter key; a DeepSeek slot needs a DeepSeek key. Checking only
+ * OpenRouter here was how a DeepSeek-only setup ended up bounced to a wizard
+ * that could not accept the key it was asking for.
+ */
+export async function getSetupStatus(slot?: ModelSlotName): Promise<SetupStatus> {
+  const settings = await loadWikiSettings(resolveWikiPath());
+  let missing: KeyProvider | null = null;
+
   if (slot) {
     const provider = settings.defaultModels[slot].provider;
-    // Ollama runs locally, so it never needs a key. A hosted provider only
-    // counts as configured when *its own* key is present — an OpenRouter key
-    // does not authorise DeepSeek.
-    if (provider !== "ollama") {
-      const { key } = await getApiKey(provider);
-      needsKey = !key;
+    const needed = missingKeyProvider(provider);
+    if (needed) {
+      const { key } = await getApiKey(needed);
+      if (!key) missing = needed;
     }
   }
 
-  const needsTopic = settings.topic.trim().length === 0;
-  if (needsTopic) {
+  return { needsTopic: settings.topic.trim().length === 0, missingKeyProvider: missing };
+}
+
+export async function requireSetup(slot?: ModelSlotName): Promise<void> {
+  const status = await getSetupStatus(slot);
+  if (status.needsTopic) {
     redirect("/");
-  } else if (needsKey) {
-    redirect("/?needsKey=1");
+  } else if (status.missingKeyProvider) {
+    // Tell the wizard which key to ask for; without it the form would offer
+    // the wrong provider's field and the user could never satisfy the gate.
+    redirect(`/?needsKey=1&provider=${status.missingKeyProvider}&slot=${slot ?? ""}`);
   }
 }

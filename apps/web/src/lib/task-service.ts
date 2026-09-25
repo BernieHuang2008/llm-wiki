@@ -29,24 +29,39 @@ import {
 import { fetchAndExtractUrl } from "@llm-wiki/ingestion";
 
 import { detectSourceFormat, extractBuffer } from "@/lib/server-ingestion";
-import {
-  openWikiContext,
-  warnIfExecutorMissing,
-  type WikiContext,
-} from "@/lib/server-wiki";
-// Side-effect import: `task-executor` registers the wiki-context hook that
-// starts the worker lanes, and importing it here guarantees the module is in
-// the server bundle. Without a real import nothing referenced it and the
-// bundler dropped it, so every submitted task sat in the queue forever.
-import { startTaskExecutor } from "@/lib/task-executor";
+import { openWikiContext, type WikiContext } from "@/lib/server-wiki";
+// A real import is required: without one, nothing referenced the executor and
+// the bundler dropped it, so every submitted task sat in the queue forever.
+import { ensureTaskExecutor } from "@/lib/task-executor";
 
-// Belt-and-braces: the module-level hook covers the normal path, but starting
-// the lanes outright as soon as a route that touches tasks is loaded removes
-// any dependency on hook ordering.
-startTaskExecutor();
-// Loud if the import above is ever removed — otherwise this failure mode looks
-// like a very slow model rather than a wiring bug.
-warnIfExecutorMissing();
+/**
+ * The executor must exist before any task can run, and it must be started
+ * from a deferred callback rather than at module scope — `task-service` and
+ * `task-executor` import each other, so touching an imported binding while
+ * the shared chunk is still evaluating throws "Cannot access … before
+ * initialization". A `setImmediate` lands after the module graph settles.
+ *
+ * `ensureTaskExecutor` also registers the "first wiki context open starts the
+ * lanes" hook, so the executor comes up on the first request even if this
+ * timer never fires. Both paths are idempotent.
+ */
+setImmediate(() => {
+  try {
+    ensureTaskExecutor();
+  } catch (err) {
+    console.error("[task-service] 无法启动后台任务执行器：", err);
+  }
+});
+
+/** Called before recording a task so a route never queues work nobody runs. */
+function ensureExecutorReady(): void {
+  try {
+    ensureTaskExecutor();
+  } catch {
+    // Non-fatal here: the submission still succeeds and the deferred start
+    // above, or the wiki-context hook, will bring the lanes up.
+  }
+}
 
 export type SubmitSuccess = {
   ok: true;
@@ -142,6 +157,9 @@ export async function submitTask(
   type: string,
   body: Record<string, unknown>,
 ): Promise<SubmitResult> {
+  // Queueing work is pointless if no lane is running, and this call is cheap
+  // and idempotent.
+  ensureExecutorReady();
   const ctx = await openWikiContext();
   try {
     switch (type) {

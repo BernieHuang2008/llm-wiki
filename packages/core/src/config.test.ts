@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -259,6 +259,9 @@ describe("clampIngestConcurrency", () => {
   it("defaults to serial ingest and sanitizes a hand-edited settings file", async () => {
     const dir = await mkdtemp(join(tmpdir(), "llm-wiki-concurrency-test-"));
     try {
+      // loadWikiSettings reads <wiki>/.llm-wiki/settings.json, so the tooling
+      // directory has to exist before the file can be written.
+      await mkdir(join(dir, ".llm-wiki"), { recursive: true });
       await writeFile(
         wikiSettingsPath(dir),
         JSON.stringify({ version: 1, topic: "T", ingestConcurrency: 99 }),

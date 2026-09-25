@@ -26,6 +26,18 @@ export function isKeyProvider(value: unknown): value is KeyProvider {
   return value === "openrouter" || value === "deepseek";
 }
 
+/**
+ * Which key a slot's provider still needs, or null when it needs none.
+ *
+ * Ollama runs locally so it never needs a key; every other provider needs its
+ * own. This is the single place that decides "is this slot runnable?", shared
+ * by the page gate and the onboarding wizard so they can never disagree.
+ */
+export function missingKeyProvider(provider: string): KeyProvider | null {
+  if (provider === "ollama") return null;
+  return isKeyProvider(provider) ? provider : "openrouter";
+}
+
 export type ApiKeySource = "keychain" | "config" | "none";
 
 export type ApiKeyResult = {
