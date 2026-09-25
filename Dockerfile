@@ -42,7 +42,8 @@ VOLUME ["/data/wiki"]
 EXPOSE 3000
 
 RUN mkdir -p /data/wiki /.llm-wiki \
-  && chown -R llmwiki:nodejs /app /data/wiki /.llm-wiki
+  && chown -R llmwiki:nodejs /app /data/wiki /.llm-wiki \
+  && chmod -R 777 /.llm-wiki
 
 USER llmwiki
 CMD ["node", "apps/web/server.js"]
