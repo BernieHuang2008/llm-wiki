@@ -8,6 +8,9 @@ import {
   submitTask,
   type SubmitFailure,
 } from "@/lib/task-service";
+// Imported directly (not via task-service) so the concurrency snapshot reads
+// the live gate rather than anything cached.
+import { taskExecutorConcurrencySnapshot } from "@/lib/task-executor";
 import { openWikiContext } from "@/lib/server-wiki";
 
 export const dynamic = "force-dynamic";
@@ -26,8 +29,16 @@ function parseStatuses(raw: string | null): readonly TaskStatus[] | undefined {
 // GET /api/tasks?status=pending,running&limit=50
 //     /api/tasks?active=1            → queue + running, oldest first
 //     /api/tasks?sourceId=<id>       → every attempt for one source
+//     /api/tasks?concurrency=1       → live gate state only (no DB read)
 export async function GET(req: Request) {
   const url = new URL(req.url);
+
+  // Cheap, DB-free diagnostic: proves the configured limit is actually being
+  // enforced, which is hard to tell apart from a slow model otherwise.
+  if (url.searchParams.get("concurrency") === "1") {
+    return NextResponse.json({ concurrency: taskExecutorConcurrencySnapshot() });
+  }
+
   const ctx = await openWikiContext();
   try {
     const sourceId = url.searchParams.get("sourceId");
@@ -36,7 +47,10 @@ export async function GET(req: Request) {
     }
 
     if (url.searchParams.get("active") === "1") {
-      return NextResponse.json({ tasks: listActiveTasksForUi(ctx.db) });
+      return NextResponse.json({
+        tasks: listActiveTasksForUi(ctx.db),
+        concurrency: taskExecutorConcurrencySnapshot(),
+      });
     }
 
     const statuses = parseStatuses(url.searchParams.get("status"));
@@ -49,6 +63,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
       tasks,
       activeCount: tasks.filter((t) => isActiveTaskStatus(t.status)).length,
+      concurrency: taskExecutorConcurrencySnapshot(),
     });
   } finally {
     ctx.db.close();

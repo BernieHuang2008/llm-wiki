@@ -153,6 +153,7 @@ async function awaitFixTask(taskId: string): Promise<Record<string, unknown>> {
 
 export function LintView() {
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
   const [result, setResult] = useState<LintResult | null>(null);
   const [model, setModel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -187,6 +188,7 @@ export function LintView() {
   async function runLint() {
     setBusy(true);
     setError(null);
+    setProgress("已提交，等待执行…");
     setFixedKeys(new Map());
     setBulkFlash(null);
     try {
@@ -195,20 +197,40 @@ export function LintView() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({}),
       });
-      const json = (await res.json()) as LintSuccess | LintFailure;
-      if (!res.ok || !("ok" in json) || json.ok !== true) {
-        const msg = "error" in json ? json.error : `HTTP ${res.status}`;
-        throw new Error(msg);
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        task?: { id: string };
+      };
+      if (!res.ok || !json.ok || !json.task) {
+        throw new Error(json.error ?? `HTTP ${res.status}`);
       }
-      setResult(json.result);
-      setModel(json.model);
-      // The lint call just appended a new entry to log.md; refresh the
-      // history panel so the user sees it without a page reload.
-      void refreshHistory();
+
+      // The check runs in the background executor now, so poll until it
+      // settles. Closing this page no longer throws the run away — log.md gets
+      // its history line either way.
+      const taskId = json.task.id;
+      for (;;) {
+        const task = await fetchTask(taskId);
+        setProgress(task.progress ?? null);
+        if (!isActive(task)) {
+          if (task.status !== "succeeded") {
+            throw new Error(task.error ?? "体检任务失败。");
+          }
+          const out = (task.output ?? {}) as { result?: LintResult; model?: string };
+          if (!out.result) throw new Error("体检任务已完成，但没有返回结果。");
+          setResult(out.result);
+          setModel(out.model ?? null);
+          void refreshHistory();
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   }
 
@@ -394,6 +416,9 @@ export function LintView() {
             <Button onClick={runLint} disabled={busy}>
               {busy ? "体检中…" : result ? "重新体检" : "开始体检"}
             </Button>
+            {busy && progress ? (
+              <span className="text-caption text-muted-foreground">{progress}</span>
+            ) : null}
             {model ? (
               <span className="text-caption text-muted-foreground">via {model}</span>
             ) : null}

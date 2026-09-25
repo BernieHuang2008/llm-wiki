@@ -167,6 +167,8 @@ export async function submitTask(
         return await submitIngest(ctx, body);
       case "query":
         return submitQuery(ctx, body);
+      case "lint":
+        return submitLint(ctx, body);
       case "chat":
         return await submitChat(ctx, body);
       case "lint_fix":
@@ -351,6 +353,15 @@ function submitQuery(ctx: WikiContext, body: Record<string, unknown>): SubmitRes
   const model = str(body["model"]);
   const task = createTask(ctx.db, ctx.wikiPath, "query", {
     question,
+    ...(model ? { model } : {}),
+  });
+  return { ok: true, task: toPublicTask(task) };
+}
+
+/** A whole-wiki health check, queued like every other model operation. */
+function submitLint(ctx: WikiContext, body: Record<string, unknown>): SubmitResult {
+  const model = str(body["model"]);
+  const task = createTask(ctx.db, ctx.wikiPath, "lint_run", {
     ...(model ? { model } : {}),
   });
   return { ok: true, task: toPublicTask(task) };

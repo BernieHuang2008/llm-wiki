@@ -18,6 +18,7 @@ export type TaskKind =
   | "ingest_text"
   | "query"
   | "chat"
+  | "lint_run"
   | "link_fix";
 
 export const TASK_KINDS: readonly TaskKind[] = [
@@ -26,6 +27,7 @@ export const TASK_KINDS: readonly TaskKind[] = [
   "ingest_text",
   "query",
   "chat",
+  "lint_run",
   "link_fix",
 ] as const;
 
@@ -82,6 +84,8 @@ export function taskKindLabel(kind: TaskKind): string {
       return "查询";
     case "chat":
       return "对话";
+    case "lint_run":
+      return "体检";
     case "link_fix":
       return "链接修复";
   }
@@ -136,6 +140,11 @@ export type QueryTaskInput = {
   model?: string;
 };
 
+export type LintRunTaskInput = {
+  /** Optional model override; defaults to the wiki's lint slot. */
+  model?: string;
+};
+
 export type ChatTaskInput = {
   chatId: string;
   message: string;
@@ -160,6 +169,7 @@ export type TaskInput =
   | IngestTextTaskInput
   | QueryTaskInput
   | ChatTaskInput
+  | LintRunTaskInput
   | LinkFixTaskInput;
 
 export type TaskRow = {

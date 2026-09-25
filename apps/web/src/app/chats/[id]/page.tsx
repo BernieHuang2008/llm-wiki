@@ -3,11 +3,12 @@ import { notFound } from "next/navigation";
 import { getChat, listChatFolders, listPageRows, readChat } from "@llm-wiki/core";
 
 import { ChatView } from "@/components/chats/chat-view";
-import { openWikiContext } from "@/lib/server-wiki";
+import { openWikiContext, requireSetup } from "@/lib/server-wiki";
 
 export const dynamic = "force-dynamic";
 
 export default async function ChatDetailPage({ params }: { params: { id: string } }) {
+  await requireSetup("chat");
   const ctx = await openWikiContext();
   try {
     if (!getChat(ctx.db, params.id)) notFound();

@@ -32,6 +32,9 @@ export function SourcesView() {
   const [error, setError] = useState<string | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Nesting depth of dragenter/dragleave, so child elements can't disarm the
+  // drop zone. See onDragEnter/onDragLeave below.
+  const dragDepth = useRef(0);
 
   const totalBytes = useMemo(
     () => files.reduce((sum, f) => sum + f.size, 0),
@@ -137,14 +140,39 @@ export function SourcesView() {
     }
   }
 
-  const onDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+  const onDrop = useCallback((e: React.DragEvent<HTMLElement>) => {
     e.preventDefault();
+    e.stopPropagation();
+    dragDepth.current = 0;
     setDragOver(false);
-    const dropped = Array.from(e.dataTransfer.files ?? []);
+    const dropped = Array.from(e.dataTransfer?.files ?? []);
     if (dropped.length > 0) {
       addFiles(dropped);
       setMode("file");
     }
+  }, []);
+
+  // `dragleave` fires every time the pointer crosses into a child element, so a
+  // plain boolean flickered the highlight and could disarm the drop target
+  // before mouseup. Counting enter/leave pairs keeps the zone armed while the
+  // cursor is anywhere inside it.
+  const onDragEnter = useCallback((e: React.DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    dragDepth.current += 1;
+    setDragOver(true);
+  }, []);
+
+  const onDragOver = useCallback((e: React.DragEvent<HTMLElement>) => {
+    // preventDefault here is what actually makes the browser accept the drop.
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    setDragOver(true);
+  }, []);
+
+  const onDragLeave = useCallback((e: React.DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragOver(false);
   }, []);
 
   return (
@@ -174,18 +202,9 @@ export function SourcesView() {
           "rounded-lg border bg-card p-5 text-card-foreground transition-colors",
           dragOver ? "border-primary ring-2 ring-primary/30" : "border-border/70",
         )}
-        onDragEnter={(e) => {
-          e.preventDefault();
-          setDragOver(true);
-        }}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragOver(true);
-        }}
-        onDragLeave={(e) => {
-          e.preventDefault();
-          setDragOver(false);
-        }}
+        onDragEnter={onDragEnter}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
         onDrop={onDrop}
       >
         <div className="inline-flex rounded-md border border-border/70 bg-secondary/40 p-1 text-ui">

@@ -208,10 +208,19 @@ export async function getSetupStatus(slot?: ModelSlotName): Promise<SetupStatus>
 export async function requireSetup(slot?: ModelSlotName): Promise<void> {
   const status = await getSetupStatus(slot);
   if (status.needsTopic) {
+    // Logged because a bare redirect is otherwise indistinguishable from a
+    // routing bug: the browser just lands back on "/" with no explanation.
+    console.warn(
+      `[setup-gate] 重定向到 / 原因=知识库缺少 topic（slot=${slot ?? "-"}, wiki=${resolveWikiPath()}）`,
+    );
     redirect("/");
   } else if (status.missingKeyProvider) {
     // Tell the wizard which key to ask for; without it the form would offer
     // the wrong provider's field and the user could never satisfy the gate.
+    console.warn(
+      `[setup-gate] 重定向到 / 原因=缺少 ${status.missingKeyProvider} 的 API Key` +
+        `（slot=${slot ?? "-"}, wiki=${resolveWikiPath()}）`,
+    );
     redirect(`/?needsKey=1&provider=${status.missingKeyProvider}&slot=${slot ?? ""}`);
   }
 }

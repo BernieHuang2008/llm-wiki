@@ -7,6 +7,7 @@ const EXT_MAP: Record<string, SourceFormat> = {
   ".markdown": "md",
   ".txt": "txt",
   ".text": "txt",
+  ".tex": "txt",
   ".html": "html",
   ".htm": "html",
   ".pdf": "pdf",

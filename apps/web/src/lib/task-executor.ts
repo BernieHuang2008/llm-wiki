@@ -26,6 +26,7 @@ import {
   getSource,
   ingestSource,
   ingestVisionSource,
+  lintWiki,
   markSourceFailed,
   markSourceIngested,
   pruneFinishedTasks,
@@ -44,6 +45,7 @@ import {
   type IngestTextTaskInput,
   type IngestUrlTaskInput,
   type LinkFixTaskInput,
+  type LintRunTaskInput,
   type ModelProvider,
   type QueryTaskInput,
   type TaskKind,
@@ -59,6 +61,7 @@ import {
 } from "@llm-wiki/llm";
 
 import { detectSourceFormat, extractBuffer, readStoredSource } from "@/lib/server-ingestion";
+import { ConcurrencyGate } from "@/lib/concurrency-gate";
 import {
   openWikiContext,
   openWikiContextSync,
@@ -112,7 +115,7 @@ const HEARTBEAT_MS = 15_000;
 const STALE_RUNNING_MS = 5 * 60 * 1000;
 
 const INGEST_KINDS: readonly TaskKind[] = ["ingest_file", "ingest_url", "ingest_text"];
-const SIDE_KINDS: readonly TaskKind[] = ["query", "chat", "link_fix"];
+const SIDE_KINDS: readonly TaskKind[] = ["query", "chat", "lint_run", "link_fix"];
 
 type State = {
   started: boolean;
@@ -179,39 +182,52 @@ export function taskExecutorMaxIngestLanes(): number {
   return MAX_INGEST_LANES;
 }
 
+/**
+ * Live concurrency state, for diagnostics.
+ *
+ * `activeIngest` is the number of ingest tasks running right now and can never
+ * exceed `ingestLimit` — that invariant is the whole point of the shared gate,
+ * and this is how the UI (and a test) can check it.
+ */
+export function taskExecutorConcurrencySnapshot(): {
+  ingestLimit: number;
+  activeIngest: number;
+  sideLimit: number;
+  activeSide: number;
+  lanes: number;
+} {
+  return {
+    ingestLimit: ingestGate.limit(),
+    activeIngest: ingestGate.activeCount(),
+    sideLimit: sideGate.limit(),
+    activeSide: sideGate.activeCount(),
+    lanes: MAX_INGEST_LANES + SIDE_LANES,
+  };
+}
+
 // ---- lanes ----------------------------------------------------------------
 
 /**
- * A lane owns a slice of the pool's concurrency budget. Ingest lanes draw from
- * the user's `ingestConcurrency`; the rest draw from a fixed side budget.
+ * The one ingest gate, shared by every ingest lane. Limits are read live so a
+ * settings change applies to the next acquisition without a restart.
  *
- * Budgets are tracked in memory per lane and reset at startup: if a worker died
- * mid-task its slot would otherwise leak forever, and a leaked slot is a lane
- * that stops picking up work.
+ * It MUST be a single shared instance: with a per-lane counter, ten ingest
+ * lanes each allowed one task, so a setting of 1 still ran ten jobs at once.
  */
-type Budget = {
-  label: string;
-  limit: () => number;
-  running: number;
-};
+const ingestGate = new ConcurrencyGate("ingest", () => currentIngestConcurrency());
+/** Non-ingest work (query/chat/link) shares its own small budget. */
+const sideGate = new ConcurrencyGate("side", () => SIDE_CONCURRENCY);
 
 async function runLane(lane: number): Promise<void> {
   const isIngestLane = lane < MAX_INGEST_LANES;
   const kinds = isIngestLane ? INGEST_KINDS : SIDE_KINDS;
-  const budget: Budget = isIngestLane
-    ? {
-        label: "ingest",
-        // Read live so a settings change applies to the next claim.
-        limit: () => currentIngestConcurrency(),
-        running: 0,
-      }
-    : { label: "side", limit: () => SIDE_CONCURRENCY, running: 0 };
+  const gate = isIngestLane ? ingestGate : sideGate;
 
   for (;;) {
-    if (budget.running >= budget.limit()) {
-      await sleep(LANE_IDLE_RETRY_MS);
-      continue;
-    }
+    // Take a slot BEFORE claiming: claiming first would mark a task `running`
+    // in the database and leave it there while this lane waits its turn, so the
+    // UI would report far more concurrency than the setting allows.
+    await gate.acquire();
 
     let claimed: TaskRow | null = null;
     try {
@@ -222,22 +238,24 @@ async function runLane(lane: number): Promise<void> {
     } catch {
       // Wiki unreadable right now (folder being switched, transient lock).
       // Back off and keep the lane alive.
+      gate.release();
       await sleep(LANE_IDLE_RETRY_MS);
       continue;
     }
 
     if (!claimed) {
+      // Nothing to do — hand the slot back rather than idling while holding it.
+      gate.release();
       await sleep(LANE_IDLE_RETRY_MS);
       continue;
     }
 
-    budget.running += 1;
     try {
       await executeTask(claimed);
     } finally {
       // `executeTask` is contracted to always settle, so this always runs —
-      // a lane can never lose its slot.
-      budget.running -= 1;
+      // a slot can never leak.
+      gate.release();
     }
     await sleep(POLL_INTERVAL_MS);
   }
@@ -388,6 +406,8 @@ async function dispatch(task: TaskRow, ctx: WikiContext, signal: AbortSignal): P
       return runQuery(task, ctx, signal);
     case "chat":
       return runChat(task, ctx, signal);
+    case "lint_run":
+      return runLint(task, ctx, signal);
     case "link_fix":
       return runLinkFix(task, ctx, signal);
     default: {
@@ -549,7 +569,39 @@ function stripLeadingTitle(raw: string): string {
   return match?.[1] ?? raw;
 }
 
-// ---- query / chat ---------------------------------------------------------
+// ---- query / chat / lint --------------------------------------------------
+
+/**
+ * Whole-wiki health check.
+ *
+ * Runs in the background like every other model operation: a large wiki can
+ * take minutes, and holding an HTTP request open for that means the user
+ * stares at a dead button and loses the result if the request is cut off.
+ * `lintWiki` writes its history line to log.md itself, so the outcome is
+ * durable even if this task is interrupted.
+ */
+async function runLint(task: TaskRow, ctx: WikiContext, signal: AbortSignal): Promise<void> {
+  const { db, wikiPath, settings } = ctx;
+  const input = task.input as LintRunTaskInput;
+  const provider = settings.defaultModels.lint.provider;
+  const model = input.model ?? settings.defaultModels.lint.model;
+  const capture = captureClientModel(createClient(await requireApiKey(provider), provider, signal));
+
+  progress(db, task.id, "正在扫描知识库…");
+  const result = await lintWiki({
+    wikiPath,
+    db,
+    client: capture.client,
+    model,
+    onProgress: taskProgress(db, task.id),
+  });
+
+  finishTask(db, task.id, {
+    model: capture.model() ?? model,
+    provider,
+    result,
+  });
+}
 
 async function runQuery(task: TaskRow, ctx: WikiContext, signal: AbortSignal): Promise<void> {
   const { db, wikiPath, settings } = ctx;
