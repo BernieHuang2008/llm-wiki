@@ -41,8 +41,8 @@ COPY --from=builder /app/apps/web/.next/standalone ./
 VOLUME ["/data/wiki"]
 EXPOSE 3000
 
-RUN mkdir -p /data/wiki \
-  && chown -R llmwiki:nodejs /app /data/wiki
+RUN mkdir -p /data/wiki /.llm-wiki \
+  && chown -R llmwiki:nodejs /app /data/wiki /.llm-wiki
 
 USER llmwiki
 CMD ["node", "apps/web/server.js"]
