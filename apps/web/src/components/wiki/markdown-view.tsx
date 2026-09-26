@@ -59,7 +59,6 @@ function WikiLink({
         // reads as "nothing happened".
         preview.active && "rounded bg-primary/10",
       )}
-      title={exists ? `→ ${slug}` : `页面“${slug}”尚不存在`}
       {...preview.handlers}
     >
       {children}
