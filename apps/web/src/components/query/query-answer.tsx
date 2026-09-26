@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 
 import { MarkdownView } from "@/components/wiki/markdown-view";
 import { cn } from "@/lib/utils";
@@ -55,6 +56,14 @@ export function QueryAnswer({
   promoteResult?: { slug: string } | null;
   promoteError?: string | null;
 }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copyOriginalAnswer() {
+    await navigator.clipboard.writeText(response.answer);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  }
+
   return (
     <section className="mt-10 space-y-6">
       <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -111,6 +120,13 @@ export function QueryAnswer({
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             建议新建的页面
           </h3>
+          <button
+            type="button"
+            onClick={() => void copyOriginalAnswer()}
+            className="mt-3 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-accent"
+          >
+            {copied ? "已复制" : "复制原始回答（Markdown）"}
+          </button>
           <p className="mt-2">
             <strong>{response.suggestedNewPage.title}</strong>{" "}
             <span className="text-xs text-muted-foreground">
