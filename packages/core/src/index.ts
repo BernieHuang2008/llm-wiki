@@ -26,6 +26,7 @@ export * from "./ingest";
 export * from "./links";
 export * from "./write-lock";
 export * from "./editor";
+export * from "./excerpt";
 export * from "./graph";
 export * from "./index-builder";
 export * from "./lint-fixes";

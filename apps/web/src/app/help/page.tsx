@@ -220,6 +220,11 @@ export default function HelpPage() {
             <strong>反向链接</strong> —— 所有提到本页的其他知识库页面。也就是列表形式的图谱视图。
           </li>
           <li>
+            <strong>悬浮预览</strong> —— 正文里的 <code>[[wikilink]]</code>{" "}
+            不必点开：鼠标停在链接上约一秒，会浮出一张小卡片，显示目标页面的标题、类型、标签和开头一段。
+            把鼠标移进卡片可以直接点“打开页面”，按 Esc 或滚动即关闭。失效链接不会弹卡片。
+          </li>
+          <li>
             标题栏中的<strong>编辑</strong>按钮。编辑使用真正的分栏 markdown 编辑器；
             保存时会把先前版本备份到{" "}
             <code>.llm-wiki/page-history/</code>。
