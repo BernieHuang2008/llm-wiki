@@ -62,6 +62,7 @@ import {
 
 import { detectSourceFormat, extractBuffer, readStoredSource } from "@/lib/server-ingestion";
 import { ConcurrencyGate } from "@/lib/concurrency-gate";
+import { appendLiveText, beginLiveStream, finishLiveStream, setLiveStreamProgress } from "@/lib/live-stream";
 import {
   openWikiContext,
   openWikiContextSync,
@@ -354,6 +355,9 @@ async function executeTask(task: TaskRow): Promise<void> {
         deadlineHit = true;
       }),
     ]);
+    // Safety net: a live buffer left open would hang every viewer, so close it
+    // here even though the chat runner normally does this itself (no-op then).
+    finishLiveStream(task.id, "succeeded");
   } catch (err) {
     const message = deadlineHit
       ? `任务超过 ${Math.round(TASK_BUDGET_MS / 60_000)} 分钟仍未完成，已中止。`
@@ -375,9 +379,13 @@ async function executeTask(task: TaskRow): Promise<void> {
         `第 ${task.attempts} 次尝试失败，${Math.round(backoff / 1000)} 秒后重试`,
       );
       bumpAttempts(ctx.db, task.id);
+      // The attempt is over even though the task is not; the next attempt
+      // starts a fresh buffer (and tells viewers to drop the dead one).
+      finishLiveStream(task.id, "failed", message);
       await sleep(backoff);
     } else {
       failTask(ctx.db, task.id, message);
+      finishLiveStream(task.id, "failed", message);
     }
   } finally {
     clearTimeout(deadline);
@@ -639,6 +647,9 @@ async function runChat(task: TaskRow, ctx: WikiContext, signal: AbortSignal): Pr
   const capture = captureClientModel(createClient(await requireApiKey(provider), provider, signal));
 
   progress(db, task.id, "正在生成回复…");
+  // Open the live buffer before the first token so a viewer that connects while
+  // the model is still thinking gets progress updates instead of silence.
+  beginLiveStream(task.id, "正在生成回复…");
   const result = await sendChatMessage({
     wikiPath,
     db,
@@ -646,15 +657,19 @@ async function runChat(task: TaskRow, ctx: WikiContext, signal: AbortSignal): Pr
     userMessage: input.message,
     client: capture.client,
     skipUserAppend: input.userMessageSaved === true,
+    onDelta: (delta) => appendLiveText(task.id, delta),
     ...(input.modelOverride ? { modelOverride: input.modelOverride } : {}),
   });
-
+  // Row first, then the live buffer: a viewer that reacts to "end" by
+  // re-reading the task must find it already terminal, otherwise it would sit
+  // waiting for an attempt that never comes.
   finishTask(db, task.id, {
     chatId: input.chatId,
     modelUsed: result.modelUsed,
     provider,
     assistant: result.assistant,
   });
+  finishLiveStream(task.id, "succeeded");
 }
 
 // ---- link fixes -----------------------------------------------------------
@@ -786,6 +801,9 @@ function progress(db: Db, taskId: string, message: string): void {
   // Remembered so the heartbeat interval can rewrite it and keep `updated_at`
   // moving while a long model call is in flight.
   lastProgress.set(taskId, message);
+  // Mirrored into the live buffer so SSE viewers see the phase change without
+  // polling for it.
+  setLiveStreamProgress(taskId, message);
   try {
     setTaskProgress(db, taskId, message);
   } catch {

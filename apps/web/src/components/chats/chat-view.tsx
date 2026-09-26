@@ -8,7 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownView } from "@/components/wiki/markdown-view";
 import { PromoteMessageDialog } from "@/components/chats/promote-message";
-import { fetchTask, isActive } from "@/lib/task-client";
+import {
+  fetchTask,
+  findActiveChatTask,
+  isActive,
+  watchTaskLive,
+  type LiveTaskWatch,
+} from "@/lib/task-client";
 import { cn } from "@/lib/utils";
 
 type ChatRow = {
@@ -44,6 +50,12 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
+  /**
+   * The reply as it is being written. Null means "nothing streaming right now";
+   * it is a preview only — the finished text always comes back from the chat
+   * file via `refreshChat`, never from here.
+   */
+  const [streamText, setStreamText] = useState<string | null>(null);
 
   const [editingTitle, setEditingTitle] = useState(false);
   const [draftTitle, setDraftTitle] = useState(initialChat.row.title);
@@ -63,16 +75,38 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
   const [ingestChatError, setIngestChatError] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  /** Only auto-follow the answer while the user is already at the bottom. */
+  const followRef = useRef(true);
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat.messages.length]);
 
-  // Stops polling when the user leaves; the server-side task continues.
+  // Live output arrives one chunk at a time; repainting on every chunk means
+  // re-parsing the whole markdown answer dozens of times a second. Buffering
+  // for ~100ms keeps the typing effect while bounding the work.
+  const pendingTextRef = useRef("");
+  useEffect(() => {
+    if (!busy) return;
+    const timer = setInterval(() => {
+      const chunk = pendingTextRef.current;
+      if (chunk.length === 0) return;
+      pendingTextRef.current = "";
+      setStreamText((prev) => (prev ?? "") + chunk);
+      if (followRef.current) messagesEndRef.current?.scrollIntoView({ block: "end" });
+    }, 100);
+    return () => clearInterval(timer);
+  }, [busy]);
+
+  // Stops watching when the user leaves; the server-side task continues.
   const aliveRef = useRef(true);
+  const watcherRef = useRef<LiveTaskWatch | null>(null);
   useEffect(() => {
     aliveRef.current = true;
     return () => {
       aliveRef.current = false;
+      watcherRef.current?.close();
+      watcherRef.current = null;
     };
   }, []);
 
@@ -89,6 +123,94 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
     }
   }
 
+  /**
+   * Watches one chat task to completion, rendering its output as it arrives.
+   *
+   * Resolves when the task settles — or when the stream tells us the task was
+   * requeued after a failed attempt, in which case we follow it into the retry
+   * rather than reporting an error the executor is already handling.
+   */
+  async function watchChatTask(taskId: string): Promise<void> {
+    const watch = watchTaskLive(taskId, {
+      onSnapshot: (snapshot) => {
+        // The snapshot is authoritative and already contains everything the
+        // buffer holds, so anything still waiting to be flushed is redundant.
+        pendingTextRef.current = "";
+        setStreamText(snapshot.text.length > 0 ? snapshot.text : null);
+        if (snapshot.progress) setProgress(snapshot.progress);
+      },
+      onReset: () => {
+        pendingTextRef.current = "";
+        setStreamText(null);
+      },
+      onDelta: (text) => {
+        pendingTextRef.current += text;
+      },
+      onProgress: (next) => {
+        if (next) setProgress(next);
+      },
+      onRetrying: (error) => {
+        pendingTextRef.current = "";
+        setStreamText(null);
+        setProgress(error ? `上一次尝试失败，正在重试：${error}` : "上一次尝试失败，正在重试…");
+      },
+    });
+    watcherRef.current = watch;
+    try {
+      const task = await watch.promise;
+      if (!task) {
+        // The watch gave up before the task settled (the server went away
+        // mid-stream). One hard read decides — and it throws if the row is gone.
+        const row = await fetchTask(taskId);
+        if (row.status !== "succeeded") {
+          throw new Error(row.error ?? "生成回复失败。");
+        }
+        return;
+      }
+      if (task.status !== "succeeded") {
+        throw new Error(task.error ?? "生成回复失败。");
+      }
+    } finally {
+      if (watcherRef.current === watch) watcherRef.current = null;
+    }
+  }
+
+  /**
+   * Re-attaches to a turn that is still running — a page reload or a return to
+   * the chat while the executor is mid-answer. The reply was never tied to this
+   * component, so the only thing to rebuild is the view of it.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const active = await findActiveChatTask(chatId).catch(() => null);
+      if (cancelled || !active) return;
+      setBusy(true);
+      setProgress(active.progress ?? "已提交，等待执行…");
+      followRef.current = true;
+      try {
+        await watchChatTask(active.id);
+        if (cancelled) return;
+        await refreshChat();
+      } catch (err) {
+        if (!cancelled) setSendError((err as Error).message);
+      } finally {
+        if (!cancelled) {
+          setBusy(false);
+          setProgress(null);
+          setStreamText(null);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+      watcherRef.current?.close();
+      watcherRef.current = null;
+    };
+    // Re-runs only when the chat changes; a send is handled by onSend itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId]);
+
   async function onSend(e?: React.FormEvent) {
     e?.preventDefault();
     if (!input.trim() || busy) return;
@@ -103,7 +225,14 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
     setChat((prev) => ({ ...prev, messages: [...prev.messages, optimisticUser] }));
     const sent = input;
     setInput("");
+    pendingTextRef.current = "";
+    setStreamText(null);
+    followRef.current = true;
     console.log(`%c[对话发送] 用户消息："${sent}"`, "color: #3b82f6; font-weight: bold;");
+    // Distinguishes "we never reached the queue" (safe to undo the optimistic
+    // turn) from "the turn is queued and something later failed" (the user's
+    // message is already in the chat file — it must stay on screen).
+    let queued = false;
     try {
       const res = await fetch(`/api/chats/${chatId}/messages`, {
         method: "POST",
@@ -118,21 +247,11 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
       if (!res.ok || !json.ok || !json.task) {
         throw new Error(json.error ?? `HTTP ${res.status}`);
       }
+      queued = true;
 
-      // The user turn is already saved server-side; wait for the assistant half
-      // of the turn. Leaving the page does not cancel it.
-      for (;;) {
-        const task = await fetchTask(json.task.id);
-        if (!aliveRef.current) return;
-        setProgress(task.progress ?? null);
-        if (!isActive(task)) {
-          if (task.status !== "succeeded") {
-            throw new Error(task.error ?? "生成回复失败。");
-          }
-          break;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 1200));
-      }
+      // The user turn is already saved server-side; watch the assistant half of
+      // the turn stream in. Leaving the page does not cancel it.
+      await watchChatTask(json.task.id);
 
       // Re-read the chat so we get the canonical message list with server-side
       // timestamps + row metadata.
@@ -141,12 +260,20 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
     } catch (err) {
       console.error(`[对话失败] 消息："${sent}" -> ${(err as Error).message}`);
       setSendError((err as Error).message);
-      // Roll back the optimistic user message so the user can retry.
-      setChat((prev) => ({ ...prev, messages: prev.messages.slice(0, -1) }));
-      setInput(sent);
+      if (queued) {
+        // The reply may still land (the task is the server's, not ours), so
+        // re-read instead of rolling back.
+        await refreshChat().catch(() => {});
+      } else {
+        // Roll back the optimistic user message so the user can retry.
+        setChat((prev) => ({ ...prev, messages: prev.messages.slice(0, -1) }));
+        setInput(sent);
+      }
     } finally {
+      pendingTextRef.current = "";
       setBusy(false);
       setProgress(null);
+      setStreamText(null);
     }
   }
 
@@ -385,7 +512,18 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
        *    width to breathe, so we don't constrain them.
        * Position alone signals who said what — role badges dropped.
        */}
-      <div className="flex-1 overflow-y-auto px-6 py-6">
+      <div
+        ref={scrollerRef}
+        className="flex-1 overflow-y-auto px-6 py-6"
+        onScroll={() => {
+          const el = scrollerRef.current;
+          if (!el) return;
+          // Sticky-bottom: an answer that is still being written should follow
+          // the text, but never yank the view away from something the user
+          // scrolled up to read.
+          followRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+        }}
+      >
         {chat.messages.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             还没有消息。先向 wiki 提一个问题开始这段对话。
@@ -425,9 +563,23 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
           </ol>
         )}
         {busy ? (
-          <p className="mt-4 text-xs text-muted-foreground">
-            {progress ? `${progress}` : "正在生成回复…"}（后台执行，离开本页也不会中断）
-          </p>
+          <div className="mt-4 max-w-[92%]">
+            {streamText ? (
+              <article className="text-sm">
+                <MarkdownView content={streamText} knownSlugs={knownSlugs} />
+              </article>
+            ) : null}
+            <p className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+              <span
+                aria-hidden
+                className="inline-block h-3.5 w-[2px] animate-pulse bg-muted-foreground/70"
+              />
+              <span>
+                {progress ? progress : "正在生成回复…"}
+                （后台执行，离开本页也不会中断）
+              </span>
+            </p>
+          </div>
         ) : null}
         {sendError ? (
           <p className="mt-4 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">

@@ -335,6 +335,12 @@ export type SendChatMessageOptions = {
    * assistant reply. Without this the message would be written twice.
    */
   skipUserAppend?: boolean;
+  /**
+   * Liveness hook only. The reply is still persisted in one write after the
+   * stream ends, so a half-finished answer can never land in the chat file —
+   * viewers get the text, the file gets the finished answer.
+   */
+  onDelta?: (delta: string) => void;
 };
 
 export type SendChatMessageResult = {
@@ -371,11 +377,13 @@ export async function sendChatMessage(
     ...chat.messages.map((m) => ({ role: m.role, content: m.content })),
   ];
 
-  // 3. LLM call.
+  // 3. LLM call. `onDelta` (when the caller wants live output) turns this into
+  // a streamed request; without it the call is exactly as before.
   const result = await chatComplete({
     client: opts.client,
     model,
     messages,
+    ...(opts.onDelta ? { onDelta: opts.onDelta } : {}),
   });
 
   insertUsage(opts.db, {

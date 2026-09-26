@@ -10,6 +10,7 @@ import {
   SchemaValidationError,
   UnknownModelError,
 } from "./errors";
+import { estimateTokens } from "./models";
 
 export type LlmClient = OpenAI;
 
@@ -316,6 +317,13 @@ export type ChatCompleteOptions = {
   maxRetries?: number;
   onRetry?: (attempt: number, delayMs: number, reason: string) => void;
   signal?: AbortSignal;
+  /**
+   * Called with every streamed chunk as it arrives. Passing it switches the
+   * request to SSE streaming so a viewer can render the answer while it is
+   * still being written; the returned result is byte-identical either way, so
+   * callers that don't care about liveness can leave it out.
+   */
+  onDelta?: (delta: string) => void;
 };
 
 export type ChatCompleteResult = {
@@ -327,26 +335,22 @@ export type ChatCompleteResult = {
 export async function chatComplete(opts: ChatCompleteOptions): Promise<ChatCompleteResult> {
   const maxRetries = opts.maxRetries ?? 3;
   let lastError: unknown = null;
+  /**
+   * How many characters the viewer has already been shown. Once anything has
+   * been streamed a retry would re-emit the same opening text, so the failure
+   * is surfaced instead of silently duplicating output.
+   */
+  let emittedChars = 0;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     opts.signal?.throwIfAborted();
     try {
-      const response = await opts.client.chat.completions.create(
-        {
-          model: opts.model,
-          messages: opts.messages.map((m) => ({ role: m.role, content: m.content })),
-        },
-        opts.signal ? { signal: opts.signal } : undefined,
-      );
-      const text = response.choices[0]?.message?.content ?? "";
-      return {
-        text,
-        model: response.model ?? opts.model,
-        usage: {
-          inputTokens: response.usage?.prompt_tokens ?? 0,
-          outputTokens: response.usage?.completion_tokens ?? 0,
-        },
-      };
+      const onDelta = opts.onDelta;
+      if (!onDelta) return await chatCompleteOnce(opts);
+      return await chatStreamOnce(opts, (delta) => {
+        emittedChars += delta.length;
+        onDelta(delta);
+      });
     } catch (err) {
       const mapped = mapSdkError(err, opts.model, opts.client.baseURL);
       lastError = mapped;
@@ -354,6 +358,7 @@ export async function chatComplete(opts: ChatCompleteOptions): Promise<ChatCompl
       if (mapped instanceof ContextLengthError || mapped instanceof UnknownModelError) {
         throw mapped;
       }
+      if (emittedChars > 0) throw mapped;
       if (attempt === maxRetries) break;
 
       const delayMs =
@@ -367,6 +372,91 @@ export async function chatComplete(opts: ChatCompleteOptions): Promise<ChatCompl
   }
 
   throw lastError ?? new LlmError("chatComplete exhausted retries with no error captured");
+}
+
+/** One non-streaming attempt. Kept separate so retry bookkeeping stays in one place. */
+async function chatCompleteOnce(opts: ChatCompleteOptions): Promise<ChatCompleteResult> {
+  const response = await opts.client.chat.completions.create(
+    {
+      model: opts.model,
+      messages: opts.messages.map((m) => ({ role: m.role, content: m.content })),
+    },
+    opts.signal ? { signal: opts.signal } : undefined,
+  );
+  const text = response.choices[0]?.message?.content ?? "";
+  return {
+    text,
+    model: response.model ?? opts.model,
+    usage: {
+      inputTokens: response.usage?.prompt_tokens ?? 0,
+      outputTokens: response.usage?.completion_tokens ?? 0,
+    },
+  };
+}
+
+/**
+ * One streaming attempt.
+ *
+ * The accumulator is the source of truth: the reply is only returned (and only
+ * persisted, by the caller) once the stream ends cleanly, so a half-received
+ * answer can never be written to the chat file. `onDelta` is for liveness only.
+ */
+async function chatStreamOnce(
+  opts: ChatCompleteOptions,
+  onDelta: (delta: string) => void,
+): Promise<ChatCompleteResult> {
+  const stream = await opts.client.chat.completions.create(
+    {
+      model: opts.model,
+      messages: opts.messages.map((m) => ({ role: m.role, content: m.content })),
+      stream: true,
+      // Asked for explicitly because providers otherwise omit usage on the
+      // final chunk. Ollama's OpenAI-compatible endpoint is the exception we
+      // know about, so we don't send it there and estimate instead.
+      ...(wantsStreamUsage(opts.client) ? { stream_options: { include_usage: true } } : {}),
+    },
+    opts.signal ? { signal: opts.signal } : undefined,
+  );
+
+  let text = "";
+  let model = opts.model;
+  let usage: LlmUsage | null = null;
+
+  for await (const chunk of stream) {
+    if (typeof chunk.model === "string" && chunk.model.length > 0) model = chunk.model;
+    const delta = chunk.choices?.[0]?.delta?.content;
+    if (typeof delta === "string" && delta.length > 0) {
+      text += delta;
+      onDelta(delta);
+    }
+    // Present only on the trailing usage chunk (see `stream_options` above).
+    if (chunk.usage) {
+      usage = {
+        inputTokens: chunk.usage.prompt_tokens ?? 0,
+        outputTokens: chunk.usage.completion_tokens ?? 0,
+      };
+    }
+  }
+
+  if (!text.trim()) {
+    // Mirrors the non-streaming path, which returns the empty string rather
+    // than inventing a failure: an empty answer stays valid, just useless.
+    return { text, model, usage: usage ?? { inputTokens: 0, outputTokens: 0 } };
+  }
+
+  return {
+    text,
+    model,
+    // Falling back to an estimate keeps the usage ledger honest rather than
+    // recording a free call just because the provider skipped usage reporting.
+    usage: usage ?? { inputTokens: 0, outputTokens: estimateTokens(text) },
+  };
+}
+
+/** Local servers ignore `stream_options` at best; skipping it keeps them happy. */
+function wantsStreamUsage(client: LlmClient): boolean {
+  const baseURL = (client as { baseURL?: string }).baseURL ?? "";
+  return !/localhost|127\.0\.0\.1|11434/i.test(baseURL);
 }
 
 // Maps OpenAI SDK errors into our typed surface so callers never need to

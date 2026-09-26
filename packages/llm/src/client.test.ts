@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-import { callLLM, type LlmClient } from "./client";
+import { callLLM, chatComplete, type LlmClient } from "./client";
 import {
   ContextLengthError,
   InvalidJsonError,
@@ -261,6 +261,148 @@ describe("callLLM retry behavior", () => {
     });
     queueMicrotask(() => controller.abort(new Error("user cancelled")));
     await expect(p).rejects.toThrow(/cancelled|aborted/);
+  });
+});
+
+describe("chatComplete streaming", () => {
+  /** Minimal async-iterable stand-in for the SDK's `Stream<ChatCompletionChunk>`. */
+  function streamOf(chunks: unknown[]): AsyncIterable<unknown> {
+    return {
+      async *[Symbol.asyncIterator]() {
+        for (const chunk of chunks) yield chunk;
+      },
+    };
+  }
+
+  function deltaChunk(text: string): unknown {
+    return {
+      id: "chatcmpl-test",
+      model: "anthropic/claude-haiku-4.5",
+      choices: [{ index: 0, delta: { content: text }, finish_reason: null }],
+    };
+  }
+
+  it("emits every delta in order and returns the joined text", async () => {
+    const create = vi.fn(() =>
+      Promise.resolve(streamOf([deltaChunk("Hello"), deltaChunk(", "), deltaChunk("wiki")])),
+    );
+    const client = { chat: { completions: { create } } } as unknown as LlmClient;
+    const deltas: string[] = [];
+
+    const result = await chatComplete({
+      client,
+      model: "anthropic/claude-haiku-4.5",
+      messages: [{ role: "user", content: "hi" }],
+      onDelta: (d) => deltas.push(d),
+    });
+
+    expect(deltas).toEqual(["Hello", ", ", "wiki"]);
+    expect(result.text).toBe("Hello, wiki");
+    expect(result.model).toBe("anthropic/claude-haiku-4.5");
+  });
+
+  it("asks for streaming and requests usage on the final chunk", async () => {
+    const create = vi.fn((..._args: unknown[]) =>
+      Promise.resolve(
+        streamOf([
+          deltaChunk("answer"),
+          {
+            id: "chatcmpl-test",
+            model: "m",
+            choices: [],
+            usage: { prompt_tokens: 42, completion_tokens: 7 },
+          },
+        ]),
+      ),
+    );
+    // baseURL is what decides whether `stream_options` is sent (Ollama skips it).
+    const client = {
+      baseURL: "https://openrouter.ai/api/v1",
+      chat: { completions: { create } },
+    } as unknown as LlmClient;
+
+    const result = await chatComplete({
+      client,
+      model: "m",
+      messages: [{ role: "user", content: "hi" }],
+      onDelta: () => {},
+    });
+
+    const params = (create.mock.calls as unknown as Array<[Record<string, unknown>]>)[0]?.[0];
+    expect(params?.["stream"]).toBe(true);
+    expect(params?.["stream_options"]).toEqual({ include_usage: true });
+    expect(result.usage).toEqual({ inputTokens: 42, outputTokens: 7 });
+  });
+
+  it("omits stream_options for a local (Ollama) endpoint and estimates usage instead", async () => {
+    const create = vi.fn((..._args: unknown[]) =>
+      Promise.resolve(streamOf([deltaChunk("abcdefgh")])),
+    );
+    const client = {
+      baseURL: "http://localhost:11434/v1",
+      chat: { completions: { create } },
+    } as unknown as LlmClient;
+
+    const result = await chatComplete({
+      client,
+      model: "llama3",
+      messages: [{ role: "user", content: "hi" }],
+      onDelta: () => {},
+    });
+
+    const params = (create.mock.calls as unknown as Array<[Record<string, unknown>]>)[0]?.[0];
+    expect(params?.["stream_options"]).toBeUndefined();
+    expect(result.usage.outputTokens).toBe(2); // ceil(8 / 4)
+  });
+
+  it("does not retry after text has already been shown to the viewer", async () => {
+    let call = 0;
+    const create = vi.fn(() => {
+      call++;
+      // First attempt streams a little, then the connection dies.
+      if (call === 1) {
+        return Promise.resolve({
+          async *[Symbol.asyncIterator]() {
+            yield deltaChunk("half an ans");
+            throw new FakeApiError("socket hang up", { code: "ECONNRESET" });
+          },
+        });
+      }
+      return Promise.resolve(streamOf([deltaChunk("duplicate")]));
+    });
+    const client = { chat: { completions: { create } } } as unknown as LlmClient;
+
+    await expect(
+      chatComplete({
+        client,
+        model: "m",
+        messages: [{ role: "user", content: "hi" }],
+        maxRetries: 3,
+        onDelta: () => {},
+      }),
+    ).rejects.toBeInstanceOf(NetworkError);
+    // One attempt only: a retry would re-stream the opening text.
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not touch streaming when no onDelta is given", async () => {
+    const create = vi.fn(() =>
+      Promise.resolve({
+        id: "x",
+        model: "m",
+        choices: [{ index: 0, message: { role: "assistant", content: "plain" } }],
+        usage: { prompt_tokens: 1, completion_tokens: 2 },
+      }),
+    );
+    const client = { chat: { completions: { create } } } as unknown as LlmClient;
+    const result = await chatComplete({
+      client,
+      model: "m",
+      messages: [{ role: "user", content: "hi" }],
+    });
+    expect(result.text).toBe("plain");
+    const params = (create.mock.calls as unknown as Array<[Record<string, unknown>]>)[0]?.[0];
+    expect(params?.["stream"]).toBeUndefined();
   });
 });
 

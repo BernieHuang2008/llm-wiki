@@ -78,15 +78,20 @@ User clicks "New chat" or starts typing in the chat composer. We:
 
 ### Send a message
 
-1. Append `## user [HH:MM:SS]` block and message text to the file
+1. Append `## user [HH:MM:SS]` block and message text to the file (so the thread shows it immediately, even if the model call later fails)
 2. Build context for the LLM:
    - System prompt: "You are answering questions in a persistent chat thread against an LLM wiki. The user has access to the full wiki content. Cite pages with [[slug]]. Reference earlier messages when relevant."
    - Wiki index
    - Relevant pages (top K based on the latest user message)
    - Full chat history (truncate older messages if context limit approaches)
-3. Stream the response, writing to a buffer
-4. Append `## assistant [HH:MM:SS]` block with the response to the file
-5. Update `updated` timestamp and `message_count` in SQLite
+3. Queue the assistant half of the turn as a background `chat` task and return `202`. The turn belongs to the task executor, not to the HTTP request, so closing the tab, reloading, or navigating away cannot cut the answer short.
+4. Stream the response, writing to a buffer. The executor appends each delta to an in-memory per-task buffer that is fanned out over SSE at `GET /api/tasks/[id]/stream`; the chat view renders it as it arrives. A viewer that attaches late (reload, second tab, a return to the chat) is sent the whole buffer as a snapshot first, so it renders the answer from the beginning instead of from wherever it happened to connect.
+5. Append `## assistant [HH:MM:SS]` block with the response to the file — only once the stream ends cleanly, so a half-received answer is never written
+6. Update `updated` timestamp and `message_count` in SQLite
+
+The stream is a *view*, never a participant: watching it, or not watching it, changes nothing about whether the turn finishes. The buffer is memory-only and disposable (it is pruned minutes after the turn ends); the chat file remains the single source of truth, and every viewer re-reads it once the turn settles.
+
+A dropped connection does not lose text either. The client reconnects and replays from the snapshot, and if the stream cannot be established at all it falls back to polling `GET /api/tasks/[id]` for the terminal row.
 
 ### Rename a chat
 

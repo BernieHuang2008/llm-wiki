@@ -121,13 +121,13 @@ export default async function HomePage({
       <section className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <ActionCard
           tone="primary"
-          title={isFresh ? "添加你的第一个Source" : "Ingest一份Source"}
+          title={isFresh ? "添加你的第一个Source" : "Ingest"}
           body="粘贴一篇文章、拖入 PDF，或抓取一个 URL。智能体会阅读它、撰写页面并建立交叉链接。"
           cta="打开Source页 →"
           href="/sources"
         />
         <ActionCard
-          title="查询知识库"
+          title="Query"
           body="带引用的单次问答。把好的回答沉淀为持久页面。"
           cta="打开查询页 →"
           href="/query"
@@ -143,7 +143,7 @@ export default async function HomePage({
           href={pageCount === 0 ? "/sources" : "/wiki"}
         />
         <ActionCard
-          title="体检知识库"
+          title="体检"
           body={
             pageCount === 0
               ? "还没有可检查的内容。请先IngestSource。"

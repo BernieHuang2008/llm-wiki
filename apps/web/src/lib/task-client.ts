@@ -91,6 +91,22 @@ export async function fetchTask(id: string): Promise<PublicTask> {
   return data.task;
 }
 
+/**
+ * The in-flight chat task for one chat, if there is one.
+ *
+ * This is how a view re-attaches after a reload: the task outlives the page, so
+ * it is found by looking for queued/running work rather than by remembering an
+ * id in the browser.
+ */
+export async function findActiveChatTask(chatId: string): Promise<PublicTask | null> {
+  const tasks = await fetchTasks("?active=1");
+  return (
+    tasks.find(
+      (task) => task.kind === "chat" && (task.input as { chatId?: unknown }).chatId === chatId,
+    ) ?? null
+  );
+}
+
 export async function cancelTask(id: string): Promise<void> {
   const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
   if (!res.ok) {
@@ -119,14 +135,154 @@ export async function waitForTask(
   }
 }
 
+// ---- live output ----------------------------------------------------------
+
+export type LiveTaskSnapshot = {
+  text: string;
+  progress: string | null;
+};
+
+export type LiveTaskHandlers = {
+  /** Authoritative replay, sent on connect and after every reconnect. */
+  onSnapshot?: (snapshot: LiveTaskSnapshot) => void;
+  /** A retry restarted the answer — drop whatever was rendered. */
+  onReset?: () => void;
+  /** A newly generated chunk of the answer. */
+  onDelta?: (text: string) => void;
+  /** Phase label ("正在生成回复…") for the stretches with no text yet. */
+  onProgress?: (progress: string | null) => void;
+  /** The last attempt failed but the task is queued again. */
+  onRetrying?: (error: string | null) => void;
+};
+
+export type LiveTaskWatch = {
+  /** Resolves with the terminal task row, or null when the outcome is unknown. */
+  promise: Promise<PublicTask | null>;
+  /** Stops watching. The task keeps running — this is a viewer, not a job. */
+  close: () => void;
+};
+
+/**
+ * Watches a background task's live output and resolves when it settles.
+ *
+ * SSE is the fast path (deltas arrive as the model writes them); polling is the
+ * safety net for environments where the stream cannot be established at all.
+ * Either way this is only a viewer: closing it, navigating away, or losing the
+ * connection never interrupts the task itself.
+ */
+export function watchTaskLive(id: string, handlers: LiveTaskHandlers = {}): LiveTaskWatch {
+  let settled = false;
+  let stop: () => void = () => {};
+  let settle: (task: PublicTask | null) => void = () => {};
+
+  const promise = new Promise<PublicTask | null>((resolve) => {
+    settle = resolve;
+    const finish = (task: PublicTask | null): void => {
+      if (settled) return;
+      settled = true;
+      stop();
+      resolve(task);
+    };
+
+    if (typeof EventSource === "undefined") {
+      stop = pollUntilSettled(id, handlers, finish);
+      return;
+    }
+
+    const source = new EventSource(`/api/tasks/${id}/stream`);
+    let connected = false;
+    let errorsAfterConnect = 0;
+    stop = () => source.close();
+
+    const on = <T>(event: string, fn: (data: T) => void): void => {
+      source.addEventListener(event, (e) => {
+        const raw = (e as MessageEvent<string>).data;
+        try {
+          fn(JSON.parse(raw) as T);
+        } catch {
+          // A malformed frame is not worth tearing the stream down for.
+        }
+      });
+    };
+
+    on<{ text: string; progress: string | null }>("snapshot", (data) => {
+      connected = true;
+      errorsAfterConnect = 0;
+      handlers.onSnapshot?.({ text: data.text, progress: data.progress });
+    });
+    on<Record<string, never>>("reset", () => handlers.onReset?.());
+    on<{ text: string }>("delta", (data) => handlers.onDelta?.(data.text));
+    on<{ progress: string | null }>("progress", (data) => handlers.onProgress?.(data.progress));
+    on<{ error: string | null }>("retrying", (data) => handlers.onRetrying?.(data.error));
+    on<{ task: PublicTask | null }>("done", (data) => finish(data.task));
+
+    source.onerror = () => {
+      // Never connected: the route is missing or the server is down. Polling
+      // still works, so degrade instead of showing a dead "generating…".
+      if (!connected) {
+        stop();
+        stop = pollUntilSettled(id, handlers, finish);
+        return;
+      }
+      // EventSource reconnects on its own and the server replays a snapshot,
+      // which makes a dropped connection invisible. Give up only if it keeps
+      // failing — then fall back to polling for the terminal row.
+      errorsAfterConnect += 1;
+      if (errorsAfterConnect > 5) {
+        stop();
+        stop = pollUntilSettled(id, handlers, finish);
+      }
+    };
+  });
+
+  return {
+    promise,
+    close: () => {
+      if (settled) return;
+      settled = true;
+      stop();
+      // Resolve rather than leave the caller awaiting forever: stopping the
+      // watch is a normal outcome (unmount, navigation), not a hung task.
+      settle(null);
+    },
+  };
+}
+
+/** Fallback path: the same polling that predates streaming, plus progress. */
+function pollUntilSettled(
+  id: string,
+  handlers: LiveTaskHandlers,
+  finish: (task: PublicTask | null) => void,
+): () => void {
+  let stopped = false;
+  void (async () => {
+    try {
+      for (;;) {
+        const task = await fetchTask(id);
+        if (stopped) return;
+        handlers.onProgress?.(task.progress);
+        if (!isActive(task)) {
+          finish(task);
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+    } catch {
+      // Unknown outcome; the caller decides whether to re-read or report.
+      if (!stopped) finish(null);
+    }
+  })();
+  return () => {
+    stopped = true;
+  };
+}
+
 type PollOptions = {
   /** Query string appended to /api/tasks, e.g. "?active=1". */
   params: string;
   intervalMs?: number;
   enabled?: boolean;
-};
-
-/**
+};/**
  * Shared polling loop. Pauses while the tab is hidden so a backgrounded
  * window is not hammering the API, and resumes (with an immediate refresh)
  * when the user comes back.
