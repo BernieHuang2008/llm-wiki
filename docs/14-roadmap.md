@@ -13,6 +13,7 @@ Project website: **[llmwiki.cc](https://llmwiki.cc)**.
 ## Status at a glance
 
 ### Product
+
 - ✅ **v1.2.0 published to npm** as [`@syasas/llm-wiki`](https://www.npmjs.com/package/@syasas/llm-wiki) — cross-platform, verified on macOS / Linux / Windows
 - ✅ All P0 + all P1 features shipped end-to-end
 - ✅ 1 of 7 P2 features shipped early (multi-wiki); 6 still V2/V3
@@ -22,6 +23,7 @@ Project website: **[llmwiki.cc](https://llmwiki.cc)**.
 - ✅ **Local model support (Ollama)** — first-class provider option in Settings → Models, with amber Settings banner + dedicated `/local-models` setup guide covering install + per-model hardware requirements (dev-log V, was Medium item #7 in CONTRIBUTING.md)
 
 ### Community + brand (dev-log U)
+
 - ✅ **Contributor infrastructure** in place — CONTRIBUTING.md (prioritized work list), CODE_OF_CONDUCT.md, SECURITY.md, issue templates, PR template, `docs/contributor-walkthrough.md` for first-time contributors
 - ✅ **9 screenshots** at `docs/screenshots/` + arranged narratively in README
 - ✅ **Brand assets** — SVG logo variants (`apps/web/public/logo*.svg`) + `docs/branding.md` design guide; README leads with hero banner + status badges
@@ -29,6 +31,7 @@ Project website: **[llmwiki.cc](https://llmwiki.cc)**.
 - ✅ **First external PR merged** (#2 from @savindugeethma — Ollama support) — 4-round review across PRs #1 and #2, squash-merged 2026-05-26 as commit `35149a3`. Released as part of v1.2.0.
 
 ### Cloud bridge (dev-log U4)
+
 - ✅ **Marketing site live** at [llmwiki.cc](https://llmwiki.cc) — separate private repo (`github.com/ddsyasas/llmwiki-cloud`), Phase 2 of the cloud plan
 - ✅ OSS repo links out to llmwiki.cc (GitHub Website field, README badges, install section, in-app `/about`)
 - ⚪ **Phase 1 of cloud plan still pending** — rename + publish `@syasas/llm-wiki-{core,llm,ingestion}` workspace packages so the cloud repo can import them. ~30 min of work, blocks the eventual hosted product (Phase 4) but does not block anything else
@@ -42,15 +45,15 @@ Things that complete the V1 promise. Roughly ordered by impact-per-effort.
 
 ### Quick wins (≤ 1 hour each)
 
-*All four V1.x quick wins shipped 2026-05-24 — see dev-log section P (P1–P4). Next items here once new ones surface.*
+_All four V1.x quick wins shipped 2026-05-24 — see dev-log section P (P1–P4). Next items here once new ones surface._
 
 ### Medium (1–3 hours each)
 
-*All six V1.x medium items shipped 2026-05-24 (dev-log section P): per-page diff view (P1 #11), approval gate (P1 #12), export to zip (P1 #13), setup gate via page-level helper, wiki templates, cross-wiki search in Cmd+K. The "setup gate for client-only routes" carryover also shipped (dev-log Q1).*
+_All six V1.x medium items shipped 2026-05-24 (dev-log section P): per-page diff view (P1 #11), approval gate (P1 #12), export to zip (P1 #13), setup gate via page-level helper, wiki templates, cross-wiki search in Cmd+K. The "setup gate for client-only routes" carryover also shipped (dev-log Q1)._
 
 ### Bigger (3+ hours each)
 
-*Production build, publishable tarball, Wiki health dashboard, and cross-platform release all shipped 2026-05-24 — see dev-log sections Q + R.*
+_Production build, publishable tarball, Wiki health dashboard, and cross-platform release all shipped 2026-05-24 — see dev-log sections Q + R._
 
 **Still open:**
 
@@ -67,18 +70,18 @@ Material shifts in the product, not just polish on V1.
 
 - **Tauri desktop installer.** Single-binary native app for Mac / Windows / Linux. Removes the Node prerequisite, lets us open raw files in the user's editor (browser sandboxes block `file://`), enables proper menubar / dock integration. **Big payoff** for non-technical users (per docs/01).
 - **URL-namespaced multi-wiki** (`/w/<id>/wiki`, `/w/<id>/graph`, etc.). Lets users browse multiple wikis simultaneously in different browser tabs. Builds on V1.x multi-wiki switcher.
-- **Embeddings-based search.** Today FTS5 covers keyword matches; vector search would handle "find me anything about quantum supremacy even if it's phrased differently." OpenAI / Voyage / local embeddings via Ollama.
+- **Embeddings-based search.** Today FTS5 covers keyword matches; vector search would handle "find me anything about quantum supremacy even if it's phrased differently." OpenAI / Voyage / local embeddings via Ollama. **Now also a one-file change for MCP**: `wiki_search` already merges retrieval channels, so a vector channel lands in `packages/mcp/src/tools/search.ts` alongside the BM25 one without touching any tool schema (see [`16-mcp-server.md`](16-mcp-server.md) § Search strategy).
 - **2D toggle on `/graph`.** `react-force-graph-2d` has near-identical API; users on weak GPUs or who prefer flat views would benefit.
 - **Multi-user / shared wikis.** Out of V1 scope by design (docs/01 non-goal), but inevitable if someone runs the project on a NAS or wants a team knowledge base. Auth, ACLs, conflict resolution all become real.
 - **Live wiki sync via chokidar** — already half-built. Wire the file watcher to `revalidatePath()` so external edits (Obsidian, vim) show up live in the browser.
 - **Lint history sparklines / dedicated `/lint/history` view.** Right now the Recent Runs panel shows N rows; a sparkline of issue count over time would be a nice visual.
-- **Cloud-readiness prep — extract a `FileSystem` interface.** Pure refactor with no functional change. Today `packages/core/src/wiki.ts`, `index-builder.ts`, `editor.ts`, `chat.ts`, etc. all call `node:fs/promises` directly. Lift those calls behind a small interface (`readFile`, `writeFile`, `readdir`, `stat`, `mkdir`) so the file-IO layer is swap-able: local FS today, S3/R2 if a cloud version ever happens. Schedule alongside V2 Tauri work so the abstraction is informed by *two* consumers (local FS + Tauri webview) rather than designed for cloud in a vacuum. **Bonus**: cleaner test seams for everything that currently mocks file paths.
+- **Cloud-readiness prep — extract a `FileSystem` interface.** Pure refactor with no functional change. Today `packages/core/src/wiki.ts`, `index-builder.ts`, `editor.ts`, `chat.ts`, etc. all call `node:fs/promises` directly. Lift those calls behind a small interface (`readFile`, `writeFile`, `readdir`, `stat`, `mkdir`) so the file-IO layer is swap-able: local FS today, S3/R2 if a cloud version ever happens. Schedule alongside V2 Tauri work so the abstraction is informed by _two_ consumers (local FS + Tauri webview) rather than designed for cloud in a vacuum. **Bonus**: cleaner test seams for everything that currently mocks file paths.
 
 ---
 
 ## V3 and beyond
 
-- **MCP server mode** — expose the wiki as an MCP server so other AI tools (Claude Desktop, future agents) can use it as memory. Read-only initially; write access for ingest later.
+- ~~**MCP server mode** — expose the wiki as an MCP server so other AI tools (Claude Desktop, future agents) can use it as memory.~~ **Shipped** — read-only, seven tools, OAuth 2.1 + static tokens, its own process on port 3738. See [`16-mcp-server.md`](16-mcp-server.md). Write access for ingest is still open, and blocked on cross-process write locking rather than on scope.
 - **Plugin system** — let users add their own extractors, prompts, lint rules. Long way off; the surface area we'd commit to supporting is large.
 - **Cloud-hosted version.** Docs/01 non-goal but inevitable demand. Would need: auth, per-user wikis, billing, SaaS chrome. Different product, same core.
 
@@ -94,7 +97,7 @@ Material shifts in the product, not just polish on V1.
 
 ## Cross-cutting tech debt
 
-- **Workspace `version` fields stuck at 0.0.0** in `packages/core`, `packages/llm`, `packages/ingestion`. Not a real issue (they're workspace:* deps), but synchronizing all packages to 1.0.0 would make `gh release` notes more accurate.
+- **Workspace `version` fields stuck at 0.0.0** in `packages/core`, `packages/llm`, `packages/ingestion`. Not a real issue (they're workspace:\* deps), but synchronizing all packages to 1.0.0 would make `gh release` notes more accurate.
 - **No CI yet.** No GitHub Actions workflow runs tests + typecheck on PRs. Easy add for any contributor who wants their first PR to be infrastructure.
 - **No automated changelog.** Each release manually edits dev-log.md. A conventional-commits → CHANGELOG.md pipeline (or just `auto-changelog`) would save 5 min per release.
 - **Some Tailwind class collisions** still possible — fixed the `text-{custom-size}` vs `text-{color}` case in `apps/web/src/lib/utils.ts` (dev-log section D bonus), but future custom utilities could re-introduce similar bugs. Periodic review of `extendTailwindMerge` config.

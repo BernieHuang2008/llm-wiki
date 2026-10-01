@@ -25,8 +25,9 @@ const PACKAGE_DIR = resolve(SCRIPT_DIR, "..");
 
 // Where the standalone server.js lives. The "apps/web" suffix mirrors the
 // workspace's directory layout under outputFileTracingRoot.
-const STANDALONE_APP_DIR = join(PACKAGE_DIR, ".next", "standalone", "apps", "web");
-const STANDALONE_NODE_MODULES = join(PACKAGE_DIR, ".next", "standalone", "node_modules");
+const STANDALONE_ROOT = join(PACKAGE_DIR, ".next", "standalone");
+const STANDALONE_APP_DIR = join(STANDALONE_ROOT, "apps", "web");
+const STANDALONE_NODE_MODULES = join(STANDALONE_ROOT, "node_modules");
 
 // Keep this list in sync with `serverComponentsExternalPackages` +
 // `webpack.externals` in next.config.mjs. Each entry must be the package's
@@ -40,6 +41,15 @@ const EXTERNAL_PACKAGES = [
   "officeparser",
   "@mozilla/readability",
   "archiver",
+  // The MCP server is a separate `node` process launched from the app, so its
+  // externals have to exist as real files in the bundle too — otherwise the
+  // child dies on a module-not-found the parent never sees. `zod` is
+  // deliberately absent: it must come from the MCP package's own tree (v4), not
+  // from `packages/core` (v3), so the recursive dependency walk copies the
+  // right one.
+  "@modelcontextprotocol/server",
+  "@modelcontextprotocol/node",
+  "@modelcontextprotocol/core",
 ];
 
 const require = createRequire(import.meta.url);
@@ -71,6 +81,7 @@ const RESOLVE_FROM = [
   join(REPO_ROOT, "packages", "core"),
   join(REPO_ROOT, "packages", "ingestion"),
   join(REPO_ROOT, "packages", "llm"),
+  join(REPO_ROOT, "packages", "mcp"),
   REPO_ROOT,
 ];
 
@@ -192,6 +203,33 @@ async function main() {
   await copyDir(join(PACKAGE_DIR, "public"), join(STANDALONE_APP_DIR, "public"));
   console.log("Copying external native packages...");
   await copyExternalPackages();
+  console.log("Copying the MCP server...");
+  await copyMcpPackage();
+}
+
+/**
+ * The MCP server is a separate process, so file tracing never sees it: the app
+ * only reaches `@llm-wiki/mcp/config`. Its launcher and bundle are copied in
+ * explicitly, at the path `resolveLauncher()` in apps/web/src/lib/server-mcp.ts
+ * expects (`<standalone root>/packages/mcp/...`).
+ *
+ * `src` is deliberately skipped — the bundle already contains the compiled
+ * workspace code, and shipping the TypeScript sources would double the size.
+ */
+async function copyMcpPackage() {
+  const source = join(REPO_ROOT, "packages", "mcp");
+  if (!(await dirExists(join(source, "dist")))) {
+    console.error(
+      "packages/mcp/dist is missing — run `pnpm --filter @llm-wiki/mcp build` " +
+        "before `next build`. The MCP server will not start without it.",
+    );
+    return;
+  }
+  const dest = join(STANDALONE_ROOT, "packages", "mcp");
+  await mkdir(dest, { recursive: true });
+  for (const entry of ["bin", "dist", "package.json"]) {
+    await copyDir(join(source, entry), join(dest, entry));
+  }
 }
 
 await main();

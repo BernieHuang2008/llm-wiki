@@ -2,19 +2,19 @@
 
 ## Stack summary
 
-| Layer | Choice | Why |
-|-------|--------|-----|
-| Language | TypeScript (strict) | One language across the whole stack |
-| Framework | Next.js 14+ (App Router) | UI + API routes in one process |
-| Styling | Tailwind CSS | Fast, conventional, no surprises |
-| Components | shadcn/ui | High-quality primitives, copy-paste so no lock-in |
-| Runtime | Node.js 20+ | LTS, broad library support |
-| Package mgmt | pnpm | Fast, disk-efficient, good workspace support |
-| Local DB | better-sqlite3 | Synchronous, fast, no separate process |
-| LLM client | openai SDK | Pointed at OpenRouter, works with all models |
-| File parsing | mammoth (docx), officeparser (pptx/xlsx), trafilatura-like for HTML | Solid Node libraries |
-| PDFs and images | Send directly to LLM | Vision models handle these natively |
-| Testing | Vitest | Fast, Jest-compatible API |
+| Layer           | Choice                                                              | Why                                               |
+| --------------- | ------------------------------------------------------------------- | ------------------------------------------------- |
+| Language        | TypeScript (strict)                                                 | One language across the whole stack               |
+| Framework       | Next.js 14+ (App Router)                                            | UI + API routes in one process                    |
+| Styling         | Tailwind CSS                                                        | Fast, conventional, no surprises                  |
+| Components      | shadcn/ui                                                           | High-quality primitives, copy-paste so no lock-in |
+| Runtime         | Node.js 20+                                                         | LTS, broad library support                        |
+| Package mgmt    | pnpm                                                                | Fast, disk-efficient, good workspace support      |
+| Local DB        | better-sqlite3                                                      | Synchronous, fast, no separate process            |
+| LLM client      | openai SDK                                                          | Pointed at OpenRouter, works with all models      |
+| File parsing    | mammoth (docx), officeparser (pptx/xlsx), trafilatura-like for HTML | Solid Node libraries                              |
+| PDFs and images | Send directly to LLM                                                | Vision models handle these natively               |
+| Testing         | Vitest                                                              | Fast, Jest-compatible API                         |
 
 ## Why not these alternatives
 
@@ -26,7 +26,7 @@
 
 ## Distribution
 
-V1.0 shipped 2026-05-24 (tag `v1.0.0`). The CLI exists in-tree at `apps/web/bin/llm-wiki.mjs` and is functional, but **npm publish is still open work** — `pnpm pack` against workspace:* deps doesn't produce a clean tarball without bundling. Tracked in [`docs/14-roadmap.md`](14-roadmap.md). Until that lands, users install from source:
+V1.0 shipped 2026-05-24 (tag `v1.0.0`). The CLI exists in-tree at `apps/web/bin/llm-wiki.mjs` and is functional, but **npm publish is still open work** — `pnpm pack` against workspace:\* deps doesn't produce a clean tarball without bundling. Tracked in [`docs/14-roadmap.md`](14-roadmap.md). Until that lands, users install from source:
 
 ```bash
 git clone https://github.com/ddsyasas/llm-wiki.git
@@ -37,6 +37,7 @@ pnpm --filter @llm-wiki/web dev
 Once published, the original plan stands: `npm install -g @syasas/llm-wiki` then `llm-wiki start [folder]`.
 
 The CLI does three things:
+
 1. Initialize the folder if needed (create `raw/`, `wiki/`, `chats/`, `CLAUDE.md`, etc.)
 2. Start a Next.js server bound to localhost on a chosen port (default 3737)
 3. Open the user's browser to that port
@@ -101,21 +102,40 @@ llm-wiki/
             ├── client.ts
             ├── models.ts     # model presets (cheap, smart, vision)
             └── index.ts
+    └── mcp/                  # MCP server (separate process, port 3738)
+        ├── package.json
+        ├── bin/              # launcher: http | stdio | config | port
+        ├── build.mjs         # esbuild bundle → dist/
+        └── src/              # config, auth (OAuth 2.1), tools, server
 ```
+
+`packages/mcp` is documented separately in [`16-mcp-server.md`](16-mcp-server.md).
+It is the one package whose code the Next app does **not** import wholesale: the
+app uses its config/types subpaths only, and the server runs as its own `node`
+process because it must outlive a browser tab and must not be able to take the UI
+down.
 
 ## Why a monorepo
 
-The three packages (`core`, `ingestion`, `llm`) have clear responsibilities and can be tested independently. The `apps/web/` directory imports from them. In V2, `apps/desktop/` will also import from them without duplication.
+The four packages (`core`, `ingestion`, `llm`, `mcp`) have clear responsibilities
+and can be tested independently. The `apps/web/` directory imports from them. In
+V2, `apps/desktop/` will also import from them without duplication.
 
 ## Process model
 
 V1 is a single Node process. Next.js handles:
+
 - Serving the UI (React)
 - API routes for ingest/query/lint/etc.
 - Reading and writing markdown files to the user's chosen folder
 - Reading and writing SQLite for metadata
 
 No separate worker process in V1. Long-running operations (ingestion of a big PDF) stream progress to the client via Server-Sent Events.
+
+The MCP server is the one exception, added on top of the V1 model: it is a second
+process (default port 3738) spawned by the app, so an MCP client keeps working
+while no browser tab is open. It only ever reads — it opens the same
+`meta.sqlite` read-write but never writes.
 
 ## Configuration
 

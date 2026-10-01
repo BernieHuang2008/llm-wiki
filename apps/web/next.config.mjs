@@ -11,7 +11,11 @@ const nextConfig = {
   // The CLI's `start` command prefers that bundle for production installs and
   // falls back to `next dev` from the workspace when it isn't present.
   output: "standalone",
-  transpilePackages: ["@llm-wiki/core", "@llm-wiki/ingestion", "@llm-wiki/llm"],
+  // `@llm-wiki/mcp` is transpiled so the server-only config helpers can be
+  // imported by API routes. Client components must never import it: the barrel
+  // reaches the MCP SDK. Use the `@llm-wiki/mcp/types` subpath there instead,
+  // or mirror the type locally as the other settings tabs do.
+  transpilePackages: ["@llm-wiki/core", "@llm-wiki/ingestion", "@llm-wiki/llm", "@llm-wiki/mcp"],
   experimental: {
     // In a monorepo, file-tracing for standalone defaults to the package dir
     // and misses workspace siblings. Point it at the repo root so @llm-wiki/*

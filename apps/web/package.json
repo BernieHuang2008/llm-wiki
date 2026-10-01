@@ -14,8 +14,8 @@
     "public"
   ],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build && node ./scripts/copy-standalone-assets.mjs",
+    "dev": "pnpm --filter @llm-wiki/mcp build && next dev",
+    "build": "pnpm --filter @llm-wiki/mcp build && next build && node ./scripts/copy-standalone-assets.mjs",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
@@ -27,6 +27,7 @@
     "@llm-wiki/core": "workspace:*",
     "@llm-wiki/ingestion": "workspace:*",
     "@llm-wiki/llm": "workspace:*",
+    "@llm-wiki/mcp": "workspace:*",
     "@radix-ui/react-slot": "^1.1.0",
     "archiver": "^8.0.0",
     "class-variance-authority": "^0.7.0",

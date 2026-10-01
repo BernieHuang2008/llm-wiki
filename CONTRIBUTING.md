@@ -16,7 +16,7 @@ Three tiers, in priority order:
 
 **V2 — material expansion.** Tauri desktop installer (removes Node prerequisite, single-binary install for non-technical users). URL-namespaced multi-wiki (`/w/<id>/wiki` so you can browse multiple wikis in tabs). Embeddings-based search (vector + FTS5 hybrid). Live wiki sync via chokidar so Obsidian/vim edits appear in the browser instantly. Ollama support so users can run local models without OpenRouter.
 
-**V3 — different category.** MCP server mode (expose the wiki as memory for Claude Desktop / other agents). Plugin system (user-authored extractors, prompts, lint rules). Possibly a cloud-hosted version for users who don't want to self-host. These are explicitly long-horizon — don't start work on them without proposing the shape first.
+**V3 — different category.** MCP server mode has shipped (`packages/mcp`, `docs/16-mcp-server.md`): read-only tools, OAuth 2.1 + static tokens, its own process — write access over MCP is the open half of it. Plugin system (user-authored extractors, prompts, lint rules). Possibly a cloud-hosted version for users who don't want to self-host. These are explicitly long-horizon — don't start work on them without proposing the shape first.
 
 The project will **stay** local-first, BYOK, MIT, and TypeScript-only. There's no plan to add telemetry, auth, hosted SaaS-by-default, or to rewrite the core in another language. If your contribution idea conflicts with these, it's probably not a good fit — open a discussion first.
 

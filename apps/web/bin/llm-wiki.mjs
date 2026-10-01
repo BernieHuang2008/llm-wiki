@@ -7,6 +7,7 @@
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { access, chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,7 +19,10 @@ const DEFAULT_PORT = Number(process.env["LLM_WIKI_PORT"] ?? 3737);
 // ---- argv parsing --------------------------------------------------------
 
 function parseArgs(argv) {
-  const args = { _: [], flags: { port: null, open: true, quiet: false, debug: false } };
+  const args = {
+    _: [],
+    flags: { port: null, open: true, quiet: false, debug: false, mcp: null },
+  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--port") {
@@ -29,6 +33,10 @@ function parseArgs(argv) {
       args.flags.quiet = true;
     } else if (a === "--debug") {
       args.flags.debug = true;
+    } else if (a === "--mcp") {
+      args.flags.mcp = true;
+    } else if (a === "--no-mcp") {
+      args.flags.mcp = false;
     } else if (a.startsWith("--port=")) {
       args.flags.port = Number(a.slice("--port=".length));
     } else if (a === "--help" || a === "-h") {
@@ -233,6 +241,8 @@ Commands:
 Options:
   --port <port>           Port to bind (default: 3737, or LLM_WIKI_PORT env)
   --no-open               Don't open the browser automatically
+  --mcp                   Also start the MCP server (default: follow Settings → MCP)
+  --no-mcp                Never start the MCP server this run
   --quiet                 Suppress non-error logs
   --debug                 Verbose logs
 
@@ -324,9 +334,7 @@ async function cmdDoctor() {
   // should use the Settings page in the browser for that.
   const keyFromConfig = cfg.openrouterKey;
   if (keyFromConfig) {
-    console.log(
-      `  ✓ OpenRouter API key set in config file (${maskKey(keyFromConfig)})`,
-    );
+    console.log(`  ✓ OpenRouter API key set in config file (${maskKey(keyFromConfig)})`);
   } else {
     console.log(
       `  · OpenRouter API key NOT set in config file — may be in OS keychain (set via the Settings page after 'llm-wiki start')`,
@@ -421,6 +429,20 @@ async function cmdStart(args) {
     HOSTNAME: process.env["HOSTNAME"] ?? "127.0.0.1",
   };
 
+  // MCP server. Started here rather than only from the app so a headless
+  // `llm-wiki start` gets it too; the app additionally starts it lazily when the
+  // user enables it from Settings. `--mcp` / `--no-mcp` override the saved
+  // setting.
+  const mcpChild = startMcp({
+    mcpLauncher: resolveMcpLauncher(),
+    env,
+    wikiPath,
+    // --no-mcp wins, then --mcp, then the saved setting.
+    disabled: args.flags.mcp === false,
+    force: args.flags.mcp === true || (await mcpEnabled()),
+    quiet: args.flags.quiet,
+  });
+
   const child = spawn(cmd, cmdArgs, { cwd: PACKAGE_DIR, env, stdio: "inherit" });
 
   if (args.flags.open) {
@@ -434,10 +456,110 @@ async function cmdStart(args) {
     }, 2000);
   }
 
-  const shutdown = (signal) => child.kill(signal);
+  const shutdown = (signal) => {
+    stopMcp(mcpChild);
+    child.kill(signal);
+  };
   process.on("SIGINT", () => shutdown("SIGINT"));
   process.on("SIGTERM", () => shutdown("SIGTERM"));
-  child.on("exit", (code) => process.exit(code ?? 0));
+  child.on("exit", (code) => {
+    stopMcp(mcpChild);
+    process.exit(code ?? 0);
+  });
+}
+
+// ---- MCP child process ---------------------------------------------------
+
+/**
+ * Locates the MCP launcher.
+ *
+ * In a published install the MCP package ships inside the app package, so the
+ * resolution tries that first and falls back to the monorepo layout.
+ */
+function resolveMcpLauncher() {
+  const candidates = [
+    join(PACKAGE_DIR, "node_modules", "@llm-wiki", "mcp", "bin", "llm-wiki-mcp.mjs"),
+    resolve(PACKAGE_DIR, "..", "..", "packages", "mcp", "bin", "llm-wiki-mcp.mjs"),
+    resolve(PACKAGE_DIR, "..", "packages", "mcp", "bin", "llm-wiki-mcp.mjs"),
+  ];
+  return candidates.find((candidate) => existsSync(candidate)) ?? null;
+}
+
+/**
+ * Best-effort MCP launch, returning the child (or null).
+ *
+ * `detached` on POSIX puts the launcher and its server in one process group so
+ * a single signal reaches both; on Windows a `taskkill /T` handles the tree.
+ */
+function startMcp(options) {
+  const { mcpLauncher, env, wikiPath, force, quiet } = options;
+  if (options.disabled) {
+    if (!quiet) console.log("MCP: 本次不启动（--no-mcp）");
+    return null;
+  }
+  if (!mcpLauncher) {
+    if (!quiet) console.log("MCP: 未找到 packages/mcp，跳过");
+    return null;
+  }
+  if (!options.force) {
+    // The launcher checks the saved setting itself and exits quietly when MCP
+    // is off, which is the honest default: no process for a feature nobody
+    // turned on.
+    if (!quiet) console.log("MCP: 未在设置中启用，跳过");
+    return null;
+  }
+
+  const baseName =
+    wikiPath
+      .split(/[\\/]+/)
+      .filter(Boolean)
+      .pop() ?? "";
+  const mcpEnv = {
+    ...env,
+    ...(baseName ? { LLM_WIKI_MCP_BASE_PATH: `/${baseName}/` } : {}),
+    LLM_WIKI_MCP_FORCE: "1",
+  };
+
+  const child = spawn(process.execPath, [mcpLauncher], {
+    cwd: PACKAGE_DIR,
+    env: mcpEnv,
+    stdio: "inherit",
+    detached: process.platform !== "win32",
+  });
+  child.on("error", (err) => {
+    console.error(`MCP: 启动失败：${err.message}`);
+  });
+  return child;
+}
+
+function stopMcp(child) {
+  if (!child || child.exitCode !== null || child.killed) return;
+  try {
+    if (process.platform === "win32") {
+      spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+    } else {
+      // Negative pid targets the whole process group created by `detached`.
+      process.kill(-child.pid, "SIGTERM");
+    }
+  } catch {
+    // Already gone.
+  }
+}
+
+/**
+ * Has the user turned MCP on in Settings → MCP?
+ *
+ * Read from the MCP package's own config file rather than duplicated here, so
+ * there is one definition of "enabled". `--mcp` overrides this.
+ */
+async function mcpEnabled() {
+  try {
+    const dir = process.env["LLM_WIKI_CONFIG_DIR"] ?? join(homedir(), ".llm-wiki");
+    const raw = await readFile(join(dir, "mcp.json"), "utf8");
+    return JSON.parse(raw)?.enabled === true;
+  } catch {
+    return false;
+  }
 }
 
 // ---- update check --------------------------------------------------------

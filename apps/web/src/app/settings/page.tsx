@@ -8,16 +8,18 @@ import { AboutTab } from "@/components/settings/about-tab";
 import { ApiTab } from "@/components/settings/api-tab";
 import { CostsTab } from "@/components/settings/costs-tab";
 import { GeneralTab } from "@/components/settings/general-tab";
+import { McpTab } from "@/components/settings/mcp-tab";
 import { ModelsTab } from "@/components/settings/models-tab";
 import { WikisTab } from "@/components/settings/wikis-tab";
 import { cn } from "@/lib/utils";
 
-type Tab = "general" | "wikis" | "models" | "api" | "costs" | "about";
-const TAB_ORDER: Tab[] = ["general", "wikis", "models", "api", "costs", "about"];
+type Tab = "general" | "wikis" | "models" | "mcp" | "api" | "costs" | "about";
+const TAB_ORDER: Tab[] = ["general", "wikis", "models", "mcp", "api", "costs", "about"];
 const TAB_LABEL: Record<Tab, string> = {
   general: "通用",
   wikis: "知识库",
   models: "模型",
+  mcp: "MCP",
   api: "API",
   costs: "花费",
   about: "关于",
@@ -73,6 +75,7 @@ export default function SettingsPage() {
         {tab === "general" ? <GeneralTab /> : null}
         {tab === "wikis" ? <WikisTab /> : null}
         {tab === "models" ? <ModelsTab /> : null}
+        {tab === "mcp" ? <McpTab /> : null}
         {tab === "api" ? <ApiTab /> : null}
         {tab === "costs" ? <CostsTab /> : null}
         {tab === "about" ? <AboutTab /> : null}

@@ -45,11 +45,11 @@ This is a from-scratch implementation of [Andrej Karpathy's LLM Wiki pattern](ht
 
 ## Why this exists
 
-| Existing tools | What they miss |
-|---|---|
-| **RAG chat** (NotebookLM, ChatGPT files) | Stateless. Rediscovers your corpus from scratch on every query. Never accumulates anything you can read later. |
-| **Note-taking apps** (Obsidian, Notion) | All the maintenance burden on the human. You write, you cross-link, you check for contradictions. Nothing scales. |
-| **LLM Wiki** | Sits between them. The LLM does the maintenance; the wiki accumulates value; you own the markdown files. |
+| Existing tools                           | What they miss                                                                                                    |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **RAG chat** (NotebookLM, ChatGPT files) | Stateless. Rediscovers your corpus from scratch on every query. Never accumulates anything you can read later.    |
+| **Note-taking apps** (Obsidian, Notion)  | All the maintenance burden on the human. You write, you cross-link, you check for contradictions. Nothing scales. |
+| **LLM Wiki**                             | Sits between them. The LLM does the maintenance; the wiki accumulates value; you own the markdown files.          |
 
 After a few weeks of feeding it sources, you have a navigable, cited, deliberately-organized body of knowledge about whatever you care about — without ever having written a page yourself.
 
@@ -59,51 +59,52 @@ After a few weeks of feeding it sources, you have a navigable, cited, deliberate
 
 ![Home page — per-wiki stats, primary action cards, and footer chips for navigation](docs/screenshots/01-home.png)
 
-*Home — per-wiki page / source / chat counts, cumulative LLM spend (click → cross-wiki dashboard), and the four primary actions. Footer chips reach every meta-surface (About, Help, Developers, Dashboard).*
+_Home — per-wiki page / source / chat counts, cumulative LLM spend (click → cross-wiki dashboard), and the four primary actions. Footer chips reach every meta-surface (About, Help, Developers, Dashboard)._
 
 ### The wiki layer
 
 ![Wiki landing — page cards grouped by type](docs/screenshots/02-wiki-landing.png)
 
-*`/wiki` — pages grouped by type (Concepts, Entities, Comparisons, Overviews). Sidebar has search + filter; clicking any card opens the page with backlinks and source lineage.*
+_`/wiki` — pages grouped by type (Concepts, Entities, Comparisons, Overviews). Sidebar has search + filter; clicking any card opens the page with backlinks and source lineage._
 
 ![3D knowledge graph](docs/screenshots/03-graph.png)
-*`/graph` — every page and every `[[wikilink]]` as a 3D force-directed network, colored by page type. Drag to orbit, scroll to zoom, click any node to focus.*
+_`/graph` — every page and every `[[wikilink]]` as a 3D force-directed network, colored by page type. Drag to orbit, scroll to zoom, click any node to focus._
 
 ![Graph view with a node selected and side panel showing details](docs/screenshots/04-graph-node-panel.png)
-*Clicking a node opens a side panel: outgoing links, full summary, connected pages. "Open page →" jumps to the wiki view of that node.*
+_Clicking a node opens a side panel: outgoing links, full summary, connected pages. "Open page →" jumps to the wiki view of that node._
 
 ### Operations
 
 ![Chat thread with a wiki question and an LLM answer that cross-links to wiki pages](docs/screenshots/05-chat.png)
-*`/chats/[id]` — multi-turn conversations over your wiki, saved as plain markdown in `chats/`. "Ingest → wiki" promotes the conversation into permanent pages; per-message "Save as wiki page" promotes a single answer.*
+_`/chats/[id]` — multi-turn conversations over your wiki, saved as plain markdown in `chats/`. "Ingest → wiki" promotes the conversation into permanent pages; per-message "Save as wiki page" promotes a single answer._
 
 ![Schema editor — split-pane markdown editor with live preview](docs/screenshots/06-schema-editor.png)
-*`/schema` — edit `CLAUDE.md` (the LLM's operating contract) with a split-pane markdown editor + live preview. Auto-backup to `.llm-wiki/schema-history/` on every save.*
+_`/schema` — edit `CLAUDE.md` (the LLM's operating contract) with a split-pane markdown editor + live preview. Auto-backup to `.llm-wiki/schema-history/` on every save._
 
 ### Settings + multi-wiki
 
 ![Settings General — topic, approval gate, default folder](docs/screenshots/07-settings-general.png)
-*`/settings` — one-line wiki topic (the LLM reads this on every operation), optional approval gate for ingest, theme picker, default models per operation slot.*
+_`/settings` — one-line wiki topic (the LLM reads this on every operation), optional approval gate for ingest, theme picker, default models per operation slot._
 
 ![Settings Costs — per-model cumulative usage breakdown](docs/screenshots/08-settings-costs.png)
-*`/settings → Costs` — cumulative tokens + spend per (model, operation) pair. The `Cost (recorded)` column populates as new LLM calls land; historical rows get backfilled from the pricing table on next startup.*
+_`/settings → Costs` — cumulative tokens + spend per (model, operation) pair. The `Cost (recorded)` column populates as new LLM calls land; historical rows get backfilled from the pricing table on next startup._
 
 ![Active wiki dropdown in the header](docs/screenshots/09-wiki-switcher.png)
-*Header chip → dropdown with the active wiki (topic + folder path), plus quick links to Create / Manage. Same actions are reachable from `⌘K` ("Switch to…" group) and `/dashboard` (per-wiki cards with Switch buttons).*
+_Header chip → dropdown with the active wiki (topic + folder path), plus quick links to Create / Manage. Same actions are reachable from `⌘K` ("Switch to…" group) and `/dashboard` (per-wiki cards with Switch buttons)._
 
 ---
 
 ## What's in v1.2
 
 > **Recent patches:**
-> - **v1.2.3** *(2026-05-27)* — **free OpenRouter models** added to the Settings → Models dropdown (Llama 3.3 70B, Nemotron Super 120B, DeepSeek V4 Flash, Gemma 4 31B). Settings banner explains rate-limit + data-retention tradeoffs. First-run wizard gained a one-click *"Use free models by default"* toggle so the cost-to-first-ingest is zero. ([release](https://github.com/ddsyasas/llm-wiki/releases/tag/v1.2.3))
-> - **v1.2.2** *(2026-05-26)* — CLI now prints an update-available banner on `llm-wiki start` when a newer version is on npm. Cached on disk, refreshed in the background, silenced by `NO_UPDATE_NOTIFIER=1` or `--quiet`. ([release](https://github.com/ddsyasas/llm-wiki/releases/tag/v1.2.2))
-> - **v1.2.1** *(2026-05-26)* — fixes two regressions from the v1.2.0 Ollama refactor: the Sources/Query pages crashed the moment text was typed/pasted, and PDF ingest failed with `Cannot read properties of undefined (reading '0')`. PDFs now ride OpenRouter's `type: "file"` contract; settings types match runtime. ([release](https://github.com/ddsyasas/llm-wiki/releases/tag/v1.2.1) · [known-issues thread](https://github.com/ddsyasas/llm-wiki/issues/3))
+>
+> - **v1.2.3** _(2026-05-27)_ — **free OpenRouter models** added to the Settings → Models dropdown (Llama 3.3 70B, Nemotron Super 120B, DeepSeek V4 Flash, Gemma 4 31B). Settings banner explains rate-limit + data-retention tradeoffs. First-run wizard gained a one-click _"Use free models by default"_ toggle so the cost-to-first-ingest is zero. ([release](https://github.com/ddsyasas/llm-wiki/releases/tag/v1.2.3))
+> - **v1.2.2** _(2026-05-26)_ — CLI now prints an update-available banner on `llm-wiki start` when a newer version is on npm. Cached on disk, refreshed in the background, silenced by `NO_UPDATE_NOTIFIER=1` or `--quiet`. ([release](https://github.com/ddsyasas/llm-wiki/releases/tag/v1.2.2))
+> - **v1.2.1** _(2026-05-26)_ — fixes two regressions from the v1.2.0 Ollama refactor: the Sources/Query pages crashed the moment text was typed/pasted, and PDF ingest failed with `Cannot read properties of undefined (reading '0')`. PDFs now ride OpenRouter's `type: "file"` contract; settings types match runtime. ([release](https://github.com/ddsyasas/llm-wiki/releases/tag/v1.2.1) · [known-issues thread](https://github.com/ddsyasas/llm-wiki/issues/3))
 
 ### The three operations (Karpathy's pattern)
 
-- **Ingest** — Drop a source (text / file / URL / PDF / image) → the LLM reads it + your existing wiki, writes new pages, updates older pages where context shifts, refreshes the index, logs the change. Each ingest is a *refactor pass*, not an append.
+- **Ingest** — Drop a source (text / file / URL / PDF / image) → the LLM reads it + your existing wiki, writes new pages, updates older pages where context shifts, refreshes the index, logs the change. Each ingest is a _refactor pass_, not an append.
 - **Query** — One-shot Q&A against the whole wiki with cited pages. "Save as wiki page" promotes useful answers into permanent entries.
 - **Lint** — Two-pass health check: local scan (broken links, orphans) + LLM pass (contradictions, gaps, stale claims, missing pages). Every issue ships with **one-click fixes** — including LLM-powered ones that write the page edit for you.
 
@@ -111,17 +112,17 @@ After a few weeks of feeding it sources, you have a navigable, cited, deliberate
 
 - **Sources page** — Add via paste, drag-and-drop, or URL. Auto-detects format. Cost preview before every ingest. Per-source detail view shows the raw text, contributing wiki pages, and metadata.
 - **Wiki landing** — Cards grouped by type (Overviews → Concepts → Entities → Comparisons → Sources). Search/filter sidebar. Click any card → page view with backlinks + source lineage + inline edit.
-- **3D Graph view** *(new in v1.0)* — Force-directed graph of every page and every `[[wikilink]]`. Same engine as Obsidian's 3D Graph plugin, but colored by **page type** (not free-form tag), so the structure of your knowledge is visible at a glance. Click-to-focus reveals neighbors; drag/scroll to orbit; URL-state for deep links. Spec: [`docs/12-graph-view.md`](docs/12-graph-view.md).
+- **3D Graph view** _(new in v1.0)_ — Force-directed graph of every page and every `[[wikilink]]`. Same engine as Obsidian's 3D Graph plugin, but colored by **page type** (not free-form tag), so the structure of your knowledge is visible at a glance. Click-to-focus reveals neighbors; drag/scroll to orbit; URL-state for deep links. Spec: [`docs/12-graph-view.md`](docs/12-graph-view.md).
 - **Chats** — Multi-turn conversations saved as `.md` files in folders. Per-message "Save as wiki page" + whole-chat "Ingest → wiki" buttons close the loop from exploratory thinking back into the permanent layer.
 - **Schema editor** — Edit the `CLAUDE.md` contract the LLM reads on every operation. Split-pane preview, auto-backup to `.llm-wiki/schema-history/`.
 - **Log timeline** — `/log` shows every ingest / edit / lint / schema-save in chronological order. Wikilinks inside log entries are clickable.
 - **Multiple wikis** — keep separate wikis for separate topics (e.g. "Physics", "ML research", "Personal KB"). Switch from the active-wiki chip in the header, the `Cmd+K` palette, or **Settings → Wikis** (full CRUD). Switching is in-place — you stay on whatever page you're on, the data refreshes around you. Spec: [`docs/13-multi-wiki.md`](docs/13-multi-wiki.md).
-- **Wiki health dashboard** at `/dashboard` *(new in v1.x)* — cross-wiki overview: per-wiki page / source / chat counts, cumulative LLM spend, last-touched timestamps, sortable by recency. Roll-up totals at the top. One-click switch into any wiki.
+- **Wiki health dashboard** at `/dashboard` _(new in v1.x)_ — cross-wiki overview: per-wiki page / source / chat counts, cumulative LLM spend, last-touched timestamps, sortable by recency. Roll-up totals at the top. One-click switch into any wiki.
 
 ### Quality / safety
 
 - **First-run gate** — A real wizard collects the wiki topic + an LLM provider (OpenRouter API key OR a local Ollama install — see below) before letting you wander. No silent failures on first ingest.
-- **Local models support (Ollama)** *(new in v1.2)* — first-class per-slot provider option in Settings → Models. Run any operation (ingest / query / chat / lint / vision) against a model on your own machine instead of OpenRouter. Free per query after the one-time model download, fully private (data never leaves your laptop). Dedicated `/local-models` setup guide in-app covers install + a hardware-requirements table mapping common models (llama3, mistral, phi3, llava, mixtral, llama3:70b, etc.) to RAM / disk / expected tokens-per-sec on Apple Silicon and CPU-only.
+- **Local models support (Ollama)** _(new in v1.2)_ — first-class per-slot provider option in Settings → Models. Run any operation (ingest / query / chat / lint / vision) against a model on your own machine instead of OpenRouter. Free per query after the one-time model download, fully private (data never leaves your laptop). Dedicated `/local-models` setup guide in-app covers install + a hardware-requirements table mapping common models (llama3, mistral, phi3, llava, mixtral, llama3:70b, etc.) to RAM / disk / expected tokens-per-sec on Apple Silicon and CPU-only.
 - **Page-history backups** — Every page edit (manual or LLM-driven) backs up the prior version to `.llm-wiki/page-history/`.
 - **Cost transparency** — Estimated cost shown before every LLM operation; running cumulative tally in Settings → Costs.
 - **Source lineage** — Every wiki page lists which raw sources it was compiled from; every source lists which wiki pages it contributed to. Bidirectional graph traversal.
@@ -129,7 +130,7 @@ After a few weeks of feeding it sources, you have a navigable, cited, deliberate
 
 ### Settings
 
-Five model slots tunable per-operation: `ingest` / `query` / `chat` / `lint` / `vision`. **Per-slot provider picker** *(new in v1.2)*: choose **OpenRouter** (cloud, BYOK, pay-as-you-go) or **Ollama (Local)** (your own machine, free) per slot — mix and match. Curated model dropdowns for each provider plus a custom-slug field for anything else. If any slot uses Ollama, a heads-up banner appears with a link to the `/local-models` setup guide. Light / dark / auto theme. OpenRouter key stored in OS keychain when available.
+Five model slots tunable per-operation: `ingest` / `query` / `chat` / `lint` / `vision`. **Per-slot provider picker** _(new in v1.2)_: choose **OpenRouter** (cloud, BYOK, pay-as-you-go) or **Ollama (Local)** (your own machine, free) per slot — mix and match. Curated model dropdowns for each provider plus a custom-slug field for anything else. If any slot uses Ollama, a heads-up banner appears with a link to the `/local-models` setup guide. Light / dark / auto theme. OpenRouter key stored in OS keychain when available.
 
 ---
 
@@ -184,13 +185,13 @@ Open `http://localhost:3000` → the first-run wizard collects your wiki topic +
 
 ### Prerequisites
 
-| Tool | Minimum | How to get it |
-|---|---|---|
-| **Node.js** | 20.x | [nodejs.org](https://nodejs.org) or `nvm install 20` (recommended) |
-| **LLM provider** | one of: | Pick **either** an OpenRouter key OR a local Ollama install (or both — mix per-slot) |
-| ↳ OpenRouter (cloud) | — | [openrouter.ai/keys](https://openrouter.ai/keys) — pay-as-you-go, ~$5 lasts most users 2-4 weeks at default models. Best quality (frontier Claude / GPT / Gemini). |
-| ↳ Ollama (local) | — | [ollama.com/download](https://ollama.com/download) + `ollama pull llama3` (or similar). Free per query, runs on your machine. See in-app `/local-models` page for full install + hardware requirements per model. |
-| **pnpm** *(source path only)* | 8.x | `npm install -g pnpm` |
+| Tool                          | Minimum | How to get it                                                                                                                                                                                                     |
+| ----------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Node.js**                   | 20.x    | [nodejs.org](https://nodejs.org) or `nvm install 20` (recommended)                                                                                                                                                |
+| **LLM provider**              | one of: | Pick **either** an OpenRouter key OR a local Ollama install (or both — mix per-slot)                                                                                                                              |
+| ↳ OpenRouter (cloud)          | —       | [openrouter.ai/keys](https://openrouter.ai/keys) — pay-as-you-go, ~$5 lasts most users 2-4 weeks at default models. Best quality (frontier Claude / GPT / Gemini).                                                |
+| ↳ Ollama (local)              | —       | [ollama.com/download](https://ollama.com/download) + `ollama pull llama3` (or similar). Free per query, runs on your machine. See in-app `/local-models` page for full install + hardware requirements per model. |
+| **pnpm** _(source path only)_ | 8.x     | `npm install -g pnpm`                                                                                                                                                                                             |
 
 Check with `node --version` before you start. **At least one LLM provider is required** — without either an OpenRouter key or a running Ollama, ingest / query / chat / lint all fail. If you only use Ollama, no OpenRouter key is needed.
 
@@ -238,7 +239,7 @@ sudo pacman -S base-devel python libsecret
 
 `libsecret` is what `keytar` talks to for the system keychain (GNOME Keyring, KWallet). Without it `keytar` still installs, but secret storage falls back to a chmod-600 file in `~/.llm-wiki/`.
 
-**Windows** — verified end-to-end via PowerShell + Node 20. `keytar` uses Windows Credential Manager natively, no extra setup. If `npm install -g` fails on the native deps, install the *C++ build tools* component of [Visual Studio Build Tools 2022](https://visualstudio.microsoft.com/downloads/) — most recent Node versions skip this since prebuilt binaries are usually available.
+**Windows** — verified end-to-end via PowerShell + Node 20. `keytar` uses Windows Credential Manager natively, no extra setup. If `npm install -g` fails on the native deps, install the _C++ build tools_ component of [Visual Studio Build Tools 2022](https://visualstudio.microsoft.com/downloads/) — most recent Node versions skip this since prebuilt binaries are usually available.
 
 **ChromeOS** — enable [Crostini Linux dev environment](https://chromeos.dev/en/linux), then follow the Linux path.
 
@@ -308,12 +309,12 @@ The CLI defaults to port **3737** (vs. `pnpm dev`'s 3000) and auto-picks the nex
 
 **Flags**:
 
-| Flag | Effect |
-|---|---|
+| Flag          | Effect                                                    |
+| ------------- | --------------------------------------------------------- |
 | `--port 4000` | Bind a specific port (also reads `LLM_WIKI_PORT` env var) |
-| `--no-open` | Don't auto-launch the browser |
-| `--quiet` | Suppress non-error logs |
-| `--debug` | Verbose logs with stack traces |
+| `--no-open`   | Don't auto-launch the browser                             |
+| `--quiet`     | Suppress non-error logs                                   |
+| `--debug`     | Verbose logs with stack traces                            |
 
 **`doctor` output**:
 
@@ -434,32 +435,32 @@ See [`docs/dev-setup.md`](docs/dev-setup.md) for: stuck ports, native-dep rebuil
 
 The app ships with three in-browser doc pages, reachable from the footer on every screen:
 
-| In-app | For |
-|---|---|
-| [`/about`](apps/web/src/app/about/page.tsx) | Story, Karpathy framing, who-it's-for, design principles |
-| [`/help`](apps/web/src/app/help/page.tsx) | User-facing how-to (every feature explained, TOC, troubleshooting) |
+| In-app                                                | For                                                                                   |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| [`/about`](apps/web/src/app/about/page.tsx)           | Story, Karpathy framing, who-it's-for, design principles                              |
+| [`/help`](apps/web/src/app/help/page.tsx)             | User-facing how-to (every feature explained, TOC, troubleshooting)                    |
 | [`/developers`](apps/web/src/app/developers/page.tsx) | Stack, monorepo tree, the three operations as code, JSON contracts, extension recipes |
 
 For the **design contract** + execution history, see `/docs` in this repo:
 
-| Spec | What it covers |
-|---|---|
-| [`01-vision.md`](docs/01-vision.md) | What this is and who it's for |
-| [`02-architecture.md`](docs/02-architecture.md) | Stack, repo layout, distribution |
-| [`03-data-model.md`](docs/03-data-model.md) | On-disk structure + SQLite schema |
-| [`04-features-v1.md`](docs/04-features-v1.md) | Exact V1 feature scope (with shipped/deferred status) |
-| [`05-llm-integration.md`](docs/05-llm-integration.md) | OpenRouter + Ollama integration, prompts, JSON contracts |
-| [`06-ingest-pipeline.md`](docs/06-ingest-pipeline.md) | How sources become wiki pages |
-| [`07-chat-threads.md`](docs/07-chat-threads.md) | Chat feature spec |
-| [`08-ui-design.md`](docs/08-ui-design.md) | Design language and key screens |
-| [`09-cli-distribution.md`](docs/09-cli-distribution.md) | CLI behavior and npm packaging |
-| [`10-build-order.md`](docs/10-build-order.md) | Sequenced build plan |
-| [`11-attribution-license.md`](docs/11-attribution-license.md) | Naming, credits, license |
-| [`12-graph-view.md`](docs/12-graph-view.md) | 3D graph view design + decisions (v1.0 addition) |
-| [`13-multi-wiki.md`](docs/13-multi-wiki.md) | Multi-wiki switcher: in-app picker, header chip, Cmd+K integration |
-| [`14-roadmap.md`](docs/14-roadmap.md) | **What's remaining.** V1.x quick wins + V2/V3 ideas + known issues, consolidated from every other doc's "deferred" list. |
-| [`dev-log.md`](docs/dev-log.md) | **Execution history.** What was built + why, dated entries. Read with `14-roadmap.md` as the matched pair (history vs. future). |
-| [`dev-setup.md`](docs/dev-setup.md) | Run / stop / recover / troubleshoot |
+| Spec                                                          | What it covers                                                                                                                  |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| [`01-vision.md`](docs/01-vision.md)                           | What this is and who it's for                                                                                                   |
+| [`02-architecture.md`](docs/02-architecture.md)               | Stack, repo layout, distribution                                                                                                |
+| [`03-data-model.md`](docs/03-data-model.md)                   | On-disk structure + SQLite schema                                                                                               |
+| [`04-features-v1.md`](docs/04-features-v1.md)                 | Exact V1 feature scope (with shipped/deferred status)                                                                           |
+| [`05-llm-integration.md`](docs/05-llm-integration.md)         | OpenRouter + Ollama integration, prompts, JSON contracts                                                                        |
+| [`06-ingest-pipeline.md`](docs/06-ingest-pipeline.md)         | How sources become wiki pages                                                                                                   |
+| [`07-chat-threads.md`](docs/07-chat-threads.md)               | Chat feature spec                                                                                                               |
+| [`08-ui-design.md`](docs/08-ui-design.md)                     | Design language and key screens                                                                                                 |
+| [`09-cli-distribution.md`](docs/09-cli-distribution.md)       | CLI behavior and npm packaging                                                                                                  |
+| [`10-build-order.md`](docs/10-build-order.md)                 | Sequenced build plan                                                                                                            |
+| [`11-attribution-license.md`](docs/11-attribution-license.md) | Naming, credits, license                                                                                                        |
+| [`12-graph-view.md`](docs/12-graph-view.md)                   | 3D graph view design + decisions (v1.0 addition)                                                                                |
+| [`13-multi-wiki.md`](docs/13-multi-wiki.md)                   | Multi-wiki switcher: in-app picker, header chip, Cmd+K integration                                                              |
+| [`14-roadmap.md`](docs/14-roadmap.md)                         | **What's remaining.** V1.x quick wins + V2/V3 ideas + known issues, consolidated from every other doc's "deferred" list.        |
+| [`dev-log.md`](docs/dev-log.md)                               | **Execution history.** What was built + why, dated entries. Read with `14-roadmap.md` as the matched pair (history vs. future). |
+| [`dev-setup.md`](docs/dev-setup.md)                           | Run / stop / recover / troubleshoot                                                                                             |
 
 ---
 
@@ -476,10 +477,11 @@ For the **design contract** + execution history, see `/docs` in this repo:
 **Deferred to V2 / V3** (tracked in [`docs/14-roadmap.md`](docs/14-roadmap.md)):
 
 - **Tauri desktop installer** (V2)
-- **MCP server mode** (V3)
 - **Embeddings-based search** + **2D graph toggle** + persistent camera state (V2)
 - **Ollama / local-model support** (V2)
 - **Scheduled lint runs** (V2)
+
+**MCP server** — shipped. Any MCP-capable client (Claude Desktop, Cursor, VS Code, …) can search and read the wiki as memory: seven read-only tools, OAuth 2.1 + static tokens, its own process on port 3738. Turn it on in **Settings → MCP**. See [`docs/16-mcp-server.md`](docs/16-mcp-server.md).
 
 The full V1.x sprint (14 items across sections P + Q + R — mobile sidebar, diff view, approval gate, export-to-zip, wiki templates, cross-wiki search, setup gate completion, wiki health dashboard, replay-tour fix, LLM cost calculation, production build, publish pipeline, cross-platform tarball) shipped on 2026-05-24 — see [`docs/dev-log.md`](docs/dev-log.md).
 
@@ -487,21 +489,21 @@ The full V1.x sprint (14 items across sections P + Q + R — mobile sidebar, dif
 
 ## Stack
 
-| Layer | Choice |
-|---|---|
-| Language | TypeScript strict |
-| Framework | Next.js 14 (App Router) |
-| UI | React, Tailwind, shadcn-style primitives, Fraunces / Crimson Pro / Inter / JetBrains Mono |
-| Storage | Plain markdown + SQLite (`better-sqlite3`) for metadata, FTS5 for search |
-| LLM | OpenRouter (cloud, BYOK) and/or local Ollama — both via the `openai` npm SDK against their OpenAI-compatible endpoints |
-| Schema validation | `zod` |
-| Frontmatter | `gray-matter` |
-| File watch | `chokidar` |
-| Source extractors | `mammoth` (DOCX), `officeparser` (XLSX/PPTX), `@mozilla/readability` (HTML/URL), vision models for PDF/image |
-| Graph view | `react-force-graph-3d` + `three.js` |
-| Secrets | OS keychain via `keytar`, with chmod-600 file fallback |
-| Tests | `vitest` |
-| Package manager | `pnpm` workspaces |
+| Layer             | Choice                                                                                                                 |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Language          | TypeScript strict                                                                                                      |
+| Framework         | Next.js 14 (App Router)                                                                                                |
+| UI                | React, Tailwind, shadcn-style primitives, Fraunces / Crimson Pro / Inter / JetBrains Mono                              |
+| Storage           | Plain markdown + SQLite (`better-sqlite3`) for metadata, FTS5 for search                                               |
+| LLM               | OpenRouter (cloud, BYOK) and/or local Ollama — both via the `openai` npm SDK against their OpenAI-compatible endpoints |
+| Schema validation | `zod`                                                                                                                  |
+| Frontmatter       | `gray-matter`                                                                                                          |
+| File watch        | `chokidar`                                                                                                             |
+| Source extractors | `mammoth` (DOCX), `officeparser` (XLSX/PPTX), `@mozilla/readability` (HTML/URL), vision models for PDF/image           |
+| Graph view        | `react-force-graph-3d` + `three.js`                                                                                    |
+| Secrets           | OS keychain via `keytar`, with chmod-600 file fallback                                                                 |
+| Tests             | `vitest`                                                                                                               |
+| Package manager   | `pnpm` workspaces                                                                                                      |
 
 Hard rules from the design contract: **TypeScript everywhere** (no Python sidecars), **cross-platform from day one** (Mac, Windows, Linux), **no Electron / Tauri / React Native in V1** (the app is a local Next.js server you run yourself).
 
