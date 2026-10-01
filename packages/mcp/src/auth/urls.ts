@@ -1,7 +1,7 @@
 // URL construction for the MCP endpoints.
 //
 // The server has no idea how the outside world reaches it: behind a Docker
-// `-p 3738:3738` mapping the browser talks to a different hostname than the
+// `-p 5040:5040` mapping the browser talks to a different hostname than the
 // container sees, and a reverse proxy adds another layer. The client already
 // knows the correct origin — it is the URL the user pasted — so the server
 // echoes that origin back in the two places the specification makes it

@@ -102,7 +102,7 @@ llm-wiki/
             ├── client.ts
             ├── models.ts     # model presets (cheap, smart, vision)
             └── index.ts
-    └── mcp/                  # MCP server (separate process, port 3738)
+    └── mcp/                  # MCP server (separate process, port 5040)
         ├── package.json
         ├── bin/              # launcher: http | stdio | config | port
         ├── build.mjs         # esbuild bundle → dist/
@@ -133,7 +133,7 @@ V1 is a single Node process. Next.js handles:
 No separate worker process in V1. Long-running operations (ingestion of a big PDF) stream progress to the client via Server-Sent Events.
 
 The MCP server is the one exception, added on top of the V1 model: it is a second
-process (default port 3738) spawned by the app, so an MCP client keeps working
+process (default port 5040) spawned by the app, so an MCP client keeps working
 while no browser tab is open. It only ever reads — it opens the same
 `meta.sqlite` read-write but never writes.
 

@@ -114,7 +114,7 @@ export type McpStatus = {
   config: McpConfig;
   port: number;
   endpointPath: string;
-  /** Public base URL a client should connect to, e.g. `http://127.0.0.1:3738`. */
+  /** Public base URL a client should connect to, e.g. `http://127.0.0.1:5040`. */
   publicBaseUrl: string;
   /** Depth of the wiki path, drives `endpointPath`. */
   basePathDepth: number;

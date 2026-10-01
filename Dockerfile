@@ -29,7 +29,7 @@ ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 ENV LLM_WIKI_PATH=/data/wiki
 # Bind the MCP server to every interface: inside a container, 127.0.0.1 is
-# unreachable from the host even with -p 3738:3738. `allowRemote` in
+# unreachable from the host even with -p 5040:5040. `allowRemote` in
 # Settings → MCP still has to be on before an unauthenticated request is let in.
 ENV LLM_WIKI_MCP_HOST=0.0.0.0
 WORKDIR /app
@@ -45,7 +45,7 @@ COPY --from=builder /app/apps/web/.next/standalone ./
 COPY docker/entrypoint.sh /app/docker/entrypoint.sh
 
 VOLUME ["/data/wiki"]
-EXPOSE 3000 3738
+EXPOSE 3000 5040
 
 RUN mkdir -p /data/wiki /.llm-wiki \
   && chmod +x /app/docker/entrypoint.sh \

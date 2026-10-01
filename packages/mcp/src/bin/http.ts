@@ -4,7 +4,7 @@
 // Started by the desktop app and by the container image. Everything it needs
 // comes from the environment, because both callers already know the answers:
 //
-//   LLM_WIKI_MCP_PORT      port to bind (default 3738)
+//   LLM_WIKI_MCP_PORT      port to bind (default 5040)
 //   LLM_WIKI_MCP_HOST      interface to bind (default 127.0.0.1, or 0.0.0.0
 //                          when the config allows remote access)
 //   LLM_WIKI_MCP_BASE_PATH wiki path prefix, for the log line and for clients

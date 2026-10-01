@@ -29,7 +29,7 @@ if (args.includes("--help") || args.includes("-h")) {
   llm-wiki-mcp port            只打印端口号
 
 环境变量：
-  LLM_WIKI_MCP_PORT       监听端口（默认 3738）
+  LLM_WIKI_MCP_PORT       监听端口（默认 5040）
   LLM_WIKI_MCP_HOST       绑定地址（默认 127.0.0.1）
   LLM_WIKI_MCP_BASE_PATH  知识库路径前缀，用于拼接 MCP 地址
   LLM_WIKI_CONFIG_DIR     配置目录（默认 ~/.llm-wiki）

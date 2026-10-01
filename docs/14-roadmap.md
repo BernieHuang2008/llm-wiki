@@ -81,7 +81,7 @@ Material shifts in the product, not just polish on V1.
 
 ## V3 and beyond
 
-- ~~**MCP server mode** — expose the wiki as an MCP server so other AI tools (Claude Desktop, future agents) can use it as memory.~~ **Shipped** — read-only, seven tools, OAuth 2.1 + static tokens, its own process on port 3738. See [`16-mcp-server.md`](16-mcp-server.md). Write access for ingest is still open, and blocked on cross-process write locking rather than on scope.
+- ~~**MCP server mode** — expose the wiki as an MCP server so other AI tools (Claude Desktop, future agents) can use it as memory.~~ **Shipped** — read-only, seven tools, OAuth 2.1 + static tokens, its own process on port 5040. See [`16-mcp-server.md`](16-mcp-server.md). Write access for ingest is still open, and blocked on cross-process write locking rather than on scope.
 - **Plugin system** — let users add their own extractors, prompts, lint rules. Long way off; the surface area we'd commit to supporting is large.
 - **Cloud-hosted version.** Docs/01 non-goal but inevitable demand. Would need: auth, per-user wikis, billing, SaaS chrome. Different product, same core.
 

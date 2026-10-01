@@ -4,7 +4,7 @@
 # The MCP server has to run as its own process so it keeps serving while no
 # browser tab is open, and so a crash in one cannot take the other down. It is
 # started first and torn down whenever the app exits, so `docker stop` does not
-# leave a stray listener holding port 3738.
+# leave a stray listener holding port 5040.
 set -eu
 
 if [ ! -f /app/packages/mcp/dist/server.js ]; then

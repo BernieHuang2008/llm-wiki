@@ -252,9 +252,9 @@ export async function mcpSupervisorStatus(): Promise<McpSupervisorStatus> {
 
 export function resolvePort(env: NodeJS.ProcessEnv = process.env): number {
   const raw = env["LLM_WIKI_MCP_PORT"];
-  if (raw === undefined || raw.trim() === "") return 3738;
+  if (raw === undefined || raw.trim() === "") return 5040;
   const parsed = Number.parseInt(raw, 10);
-  return Number.isInteger(parsed) && parsed > 0 && parsed < 65536 ? parsed : 3738;
+  return Number.isInteger(parsed) && parsed > 0 && parsed < 65536 ? parsed : 5040;
 }
 
 /**

@@ -7,12 +7,12 @@
  * when the preferred one is busy — would silently break every configured
  * client, so the port is fixed and a conflict is reported instead.
  *
- * `LLM_WIKI_MCP_PORT` exists only so a Docker `-p 3738:3738` mapping, or a
+ * `LLM_WIKI_MCP_PORT` exists only so a Docker `-p 5040:5040` mapping, or a
  * second instance on one machine, can be pointed elsewhere. Both sides read it
  * through `resolveMcpPort()`, so the URL shown in Settings and the port the
  * server binds cannot disagree.
  */
-export const DEFAULT_MCP_PORT = 3738;
+export const DEFAULT_MCP_PORT = 5040;
 
 /** Default endpoint, for a single-wiki install. */
 export const MCP_ENDPOINT_PATH = "/mcp";
@@ -54,7 +54,7 @@ export function wikiBasePathFromMcpPath(mcpPath: string): string {
  * Anything ending in `/mcp` is taken at face value — that is the documented
  * shape and it needs no guessing. Otherwise the server is serving the default
  * endpoint at the origin root, which is what a client that was given
- * `http://host:3738` (no path) expects.
+ * `http://host:5040` (no path) expects.
  */
 export function detectEndpointPath(pathname: string): string {
   const normalized = normalizeMcpPath(pathname);

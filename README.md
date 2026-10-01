@@ -481,7 +481,7 @@ For the **design contract** + execution history, see `/docs` in this repo:
 - **Ollama / local-model support** (V2)
 - **Scheduled lint runs** (V2)
 
-**MCP server** — shipped. Any MCP-capable client (Claude Desktop, Cursor, VS Code, …) can search and read the wiki as memory: seven read-only tools, OAuth 2.1 + static tokens, its own process on port 3738. Turn it on in **Settings → MCP**. See [`docs/16-mcp-server.md`](docs/16-mcp-server.md).
+**MCP server** — shipped. Any MCP-capable client (Claude Desktop, Cursor, VS Code, …) can search and read the wiki as memory: seven read-only tools, OAuth 2.1 + static tokens, its own process on port 5040. Turn it on in **Settings → MCP**. See [`docs/16-mcp-server.md`](docs/16-mcp-server.md).
 
 The full V1.x sprint (14 items across sections P + Q + R — mobile sidebar, diff view, approval gate, export-to-zip, wiki templates, cross-wiki search, setup gate completion, wiki health dashboard, replay-tour fix, LLM cost calculation, production build, publish pipeline, cross-platform tarball) shipped on 2026-05-24 — see [`docs/dev-log.md`](docs/dev-log.md).
 

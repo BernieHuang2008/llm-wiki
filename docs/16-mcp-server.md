@@ -11,7 +11,7 @@ design — see [Why read-only](#why-read-only).
 ## 1. Shape
 
 ```
-LLM Wiki (Next.js, :3737)          MCP server (node, :3738)
+LLM Wiki (Next.js, :3737)          MCP server (node, :5040)
 ┌────────────────────────┐         ┌──────────────────────────────────┐
 │ Settings → MCP         │  spawn  │ POST /mcp        JSON-RPC (MCP)  │
 │  /api/mcp/config  ─────┼────────▶│ GET  /.well-known/…              │
@@ -38,8 +38,8 @@ process cannot start a duplicate.
 
 **Why a separate port.** The app's port is already variable and auto-incremented
 when busy (`llm-wiki start` picks 3737 and walks up). A variable port would
-break every client the moment it moved, so the MCP port is fixed at **3738**.
-The Settings page shows `http://<browser hostname>:3738/<wiki>/mcp` — the domain
+break every client the moment it moved, so the MCP port is fixed at **5040**.
+The Settings page shows `http://<browser hostname>:5040/<wiki>/mcp` — the domain
 half comes from `window.location`, the port from `packages/mcp/src/port.ts`.
 
 ---
@@ -257,7 +257,7 @@ same way `wikis-tab.tsx` mirrors the schema templates.
 
 | Env var                  | Default                                    | Meaning                                                              |
 | ------------------------ | ------------------------------------------ | -------------------------------------------------------------------- |
-| `LLM_WIKI_MCP_PORT`      | `3738`                                     | Port to bind. Both sides read it, so the displayed URL cannot drift. |
+| `LLM_WIKI_MCP_PORT`      | `5040`                                     | Port to bind. Both sides read it, so the displayed URL cannot drift. |
 | `LLM_WIKI_MCP_HOST`      | `127.0.0.1` (`0.0.0.0` when `allowRemote`) | Interface to bind.                                                   |
 | `LLM_WIKI_MCP_BASE_PATH` | empty                                      | Wiki path prefix the app displays, e.g. `/quantum/`.                 |
 | `LLM_WIKI_MCP_FORCE`     | unset                                      | Start even when `mcp.json` says disabled.                            |
@@ -271,15 +271,15 @@ resolved paths and URL.
 
 ## 8. Docker
 
-`EXPOSE 3000 3738`, and `docker/entrypoint.sh` runs the app and the MCP server as
+`EXPOSE 3000 5040`, and `docker/entrypoint.sh` runs the app and the MCP server as
 two processes with a shared shutdown trap. Publish both ports:
 
 ```bash
-docker run -p 3000:3000 -p 3738:3738 -v ~/my-wiki:/data/wiki llm-wiki
+docker run -p 3000:3000 -p 5040:5040 -v ~/my-wiki:/data/wiki llm-wiki
 ```
 
 Inside the container the wiki lives at `/data/wiki`, so the endpoint is
-`/data/wiki/mcp` while the browser sees `http://host:3738/data/wiki/mcp`. Set
+`/data/wiki/mcp` while the browser sees `http://host:5040/data/wiki/mcp`. Set
 `LLM_WIKI_MCP_BASE_PATH` to advertise a friendlier path, and remember that
 `allowRemote` must be on before an unauthenticated request is accepted.
 
