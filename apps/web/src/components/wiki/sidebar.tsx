@@ -80,7 +80,7 @@ export function WikiSidebar() {
         />
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-2 pb-4 text-ui">
+      <nav className="flex-1 overflow-y-auto px-2 pb-4 text-ui scrollbar-thin">
         <Link
           href="/wiki"
           className={cn(
