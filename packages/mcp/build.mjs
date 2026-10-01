@@ -13,16 +13,57 @@
 // not exist.
 
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PACKAGE_DIR = resolve(dirname(fileURLToPath(import.meta.url)));
 
 /**
- * Resolved through Node rather than `node_modules/.bin`, because pnpm's shim
- * directory is not guaranteed to exist after a filtered install.
+ * The esbuild CLI, resolved three ways because only the last one is reliable in
+ * a fresh install.
+ *
+ * pnpm only runs a dependency's install script when the package is listed under
+ * `pnpm.onlyBuiltDependencies` in the root package.json, and esbuild is not
+ * listed (its script exists to validate/download a binary). So
+ * `node_modules/esbuild/bin/esbuild` — a shim created by that script — may not
+ * exist, while the real platform binary that pnpm installs as an optional
+ * dependency always does. In the Docker builder that is exactly what happens,
+ * which is why this does not simply hard-code the shim path.
  */
-const ESBUILD = resolve(PACKAGE_DIR, "node_modules", "esbuild", "bin", "esbuild");
+function resolveEsbuild() {
+  const require = createRequire(join(PACKAGE_DIR, "package.json"));
+
+  const shim = join(PACKAGE_DIR, "node_modules", "esbuild", "bin", "esbuild");
+  if (existsSync(shim)) return shim;
+
+  try {
+    // `esbuild/bin/esbuild` is not exported, but the package's main entry is, so
+    // walk up from it to the package root and use the documented CLI path.
+    const entry = require.resolve("esbuild");
+    let dir = dirname(entry);
+    for (let i = 0; i < 6; i++) {
+      if (existsSync(join(dir, "package.json"))) {
+        const candidate = join(dir, "bin", "esbuild");
+        if (existsSync(candidate)) return candidate;
+      }
+      const parent = dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+  } catch {
+    // esbuild is not resolvable at all; reported below.
+  }
+
+  console.error(
+    "[mcp] 找不到 esbuild。请在仓库根目录运行 `pnpm install` 后重试\n" +
+      "[mcp] （Docker 构建中由 deps 阶段的 pnpm install 提供）。",
+  );
+  process.exit(1);
+}
+
+const ESBUILD = resolveEsbuild();
 
 const EXTERNAL = [
   // Native addons and the packages that conditionally require them.
