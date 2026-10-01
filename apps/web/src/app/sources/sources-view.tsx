@@ -125,8 +125,8 @@ export function SourcesView() {
       );
       setSubmitted(
         count === 1
-          ? "已提交 1 个后台任务。可以关闭本页或切换页面，Ingest会在服务端继续执行。"
-          : `已提交 ${count} 个后台任务，每个文件独立执行、互不影响。可以关闭本页。`,
+          ? "已提交 1 个后台任务。"
+          : `已提交 ${count} 个后台任务。`,
       );
       setText("");
       setTitle("");
@@ -180,7 +180,7 @@ export function SourcesView() {
       <PageHeader
         eyebrow="加入 wiki"
         title="Source"
-        description="粘贴文本和 Markdown 直接Ingest；网址会抓取并用 Readability 抽取正文；PDF 与图片走视觉模型；DOCX/PPTX/XLSX 在本地预解析。所有任务都在后台执行，关闭页面不会中断。"
+        description="粘贴文本和 Markdown 直接Ingest；网址会抓取并用 Readability 抽取正文；PDF 与图片走视觉模型；DOCX/PPTX/XLSX 在本地预解析。"
       />
 
       <section className="mb-8 rounded-lg border border-border/70 bg-card p-5">
@@ -389,7 +389,7 @@ export function SourcesView() {
             <p className="text-xs text-muted-foreground">
               {mode === "file" && visionCount > 0
                 ? "含 PDF/图片，将使用 设置 → 模型 → 视觉 中的模型。"
-                : "使用Ingest模型；提交后立即返回，任务在后台执行。"}
+                : "使用Ingest模型。"}
             </p>
           </div>
         </form>

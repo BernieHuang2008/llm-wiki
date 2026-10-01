@@ -39,7 +39,6 @@ export function TasksPanel() {
             ? "border-primary/40 bg-primary/10 text-primary"
             : "border-border bg-muted/60 text-muted-foreground hover:text-foreground",
         )}
-        title="后台任务：由服务端执行器运行，关闭页面也不会中断"
         aria-label="后台任务"
       >
         <span aria-hidden className={active.length > 0 ? "animate-pulse" : undefined}>
@@ -75,10 +74,6 @@ export function TasksPanel() {
               ))}
             </ul>
           )}
-
-          <p className="mt-2 border-t border-border/60 pt-2 text-[10px] text-muted-foreground">
-            任务在服务端持续执行，关闭页面或刷新都不会中断。
-          </p>
         </div>
       ) : null}
     </div>

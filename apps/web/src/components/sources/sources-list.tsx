@@ -102,7 +102,7 @@ export function SourcesList({ refreshNonce, onChanged }: Props) {
       });
       const json = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || !json.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
-      setActionFlash("已重新加入后台任务队列，可关闭页面，任务会继续执行。");
+      setActionFlash("已重新加入后台任务队列。");
       await fetchSources();
       onChanged?.();
     } catch (err) {
@@ -168,7 +168,7 @@ export function SourcesList({ refreshNonce, onChanged }: Props) {
       <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
         {failedCount > 0
           ? `${failedCount} 个SourceIngest失败，可点击"重试"重新排队。`
-          : `${waitingCount} 个Source正在后台排队或执行，可随时关闭页面。`}
+          : `${waitingCount} 个Source正在后台排队或执行……`}
       </p>
 
       {actionFlash ? (

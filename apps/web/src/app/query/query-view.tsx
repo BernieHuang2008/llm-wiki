@@ -197,7 +197,7 @@ export function QueryView() {
 
       {busy ? (
         <p className="mt-6 rounded-md bg-secondary/40 px-3 py-2 text-sm text-muted-foreground">
-          任务已在后台运行{progress ? `：${progress}` : "…"}。即使离开本页，回答也会继续生成并保存。
+          任务已在后台运行{progress ? `：${progress}` : "…"}。
         </p>
       ) : null}
 

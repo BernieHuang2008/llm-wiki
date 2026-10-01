@@ -334,7 +334,7 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
     if (chat.messages.length === 0) return;
     if (
       !confirm(
-        "把这个对话作为 wiki SourceIngest？智能体会读完整段对话，并据此新建或更新 wiki 页面。任务会在后台执行，离开本页不会中断。",
+        "把这个对话作为 wiki SourceIngest？智能体会读完整段对话，并据此新建或更新 wiki 页面。",
       )
     )
       return;
@@ -576,7 +576,6 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
               />
               <span>
                 {progress ? progress : "正在生成回复…"}
-                （后台执行，离开本页也不会中断）
               </span>
             </p>
           </div>
