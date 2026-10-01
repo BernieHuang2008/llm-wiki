@@ -27,7 +27,6 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
-ENV LLM_WIKI_PATH=/data/wiki
 # Bind the MCP server to every interface: inside a container, 127.0.0.1 is
 # unreachable from the host even with -p 5040:5040. `allowRemote` in
 # Settings → MCP still has to be on before an unauthenticated request is let in.
