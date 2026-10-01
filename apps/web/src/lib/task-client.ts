@@ -63,12 +63,13 @@ export const TASK_BUSY_LABEL: Record<TaskKind, string> = {
 export function taskStatusTone(status: TaskStatus): string {
   switch (status) {
     case "succeeded":
+    case "running":
       return "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
     case "failed":
     case "interrupted":
-      return "bg-destructive/10 text-destructive";
     case "canceled":
-      return "bg-secondary text-secondary-foreground";
+      return "bg-destructive/10 text-destructive";
+    case "pending":
     default:
       return "bg-amber-500/10 text-amber-700 dark:text-amber-300";
   }

@@ -54,7 +54,7 @@ export function TasksPanel() {
           <div className="mb-2 flex items-baseline justify-between">
             <p className="font-medium">后台任务</p>
             <p className="text-[11px] text-muted-foreground">
-              {running} 执行中 · {queued} 排队中
+              {running} 执行中 / {queued} 排队中
             </p>
           </div>
 

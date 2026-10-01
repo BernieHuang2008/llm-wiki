@@ -505,19 +505,6 @@ export function ModelsTab() {
                   </p>
                 )}
 
-                {/* DeepSeek hint — the ids here only work against DeepSeek's
-                    own endpoint, and the key lives in 设置 → API. */}
-                {isDeepSeek && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    使用 DeepSeek 官方接口（<code className="font-mono">api.deepseek.com</code>），
-                    密钥请在「API」标签页填写。此处只接受 DeepSeek 原生模型 id，
-                    与 OpenRouter 的 <code className="font-mono">deepseek/…</code> 写法不通用。
-                    DeepSeek 按人民币计费且分高峰／空闲两档（北京时间周一至周五
-                    9:00–12:00、14:00–18:00 为高峰），成本页按峰值价折算成美元记入，
-                    因此显示值通常是实际花费的上限。
-                  </p>
-                )}
-
                 <p className="mt-1 text-xs text-muted-foreground">{SLOT_HINT[slot]}</p>
               </div>
             );
