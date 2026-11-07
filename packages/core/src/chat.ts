@@ -20,7 +20,7 @@ import {
   listChatRows,
   updateChat,
 } from "./db-chats";
-import { searchPages } from "./db-pages";
+import { searchPagesUnified } from "./search-meili";
 import { insertUsage } from "./db-usage";
 import { buildChatSystemPrompt } from "./prompts/chat";
 import type { ExistingPageSnippet } from "./prompts/ingest";
@@ -494,7 +494,7 @@ async function loadRelevantPages(
 ): Promise<ExistingPageSnippet[]> {
   let hits: Array<{ slug: string; title: string }> = [];
   try {
-    hits = searchPages(db, question, TOP_K_RELEVANT_PAGES);
+    hits = await searchPagesUnified(wikiPath, db, question, TOP_K_RELEVANT_PAGES);
   } catch {
     hits = [];
   }

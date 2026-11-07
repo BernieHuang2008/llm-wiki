@@ -327,7 +327,10 @@ const STACK: Array<{ label: string; value: string }> = [
     label: "LLM",
     value: "OpenRouter（自带密钥）—— Claude / GPT / Gemini / Llama，按操作自选",
   },
-  { label: "检索", value: "对页面正文 + frontmatter 标题/标签使用 FTS5" },
+  {
+    label: "检索",
+    value: "Meilisearch（每库一个索引）；不可用时回退到标题/标签匹配",
+  },
   {
     label: "Ingest",
     value:

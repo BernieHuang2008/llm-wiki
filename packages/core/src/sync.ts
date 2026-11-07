@@ -11,6 +11,7 @@ import {
   upsertPage,
 } from "./db-pages";
 import { deleteSyncState, getSyncState, listSyncedPaths, upsertSyncState } from "./db-sync";
+import { removePageFromMeili, scheduleWikiIndexSync } from "./search-meili";
 import type { PageRow } from "./types";
 import { readPage, WIKI_PATHS } from "./wiki";
 
@@ -96,10 +97,11 @@ async function syncPageFile(
   (prior ? result.updated : result.added).push(slug);
 }
 
-function removePageBySlug(db: Db, slug: string, relPath: string): void {
+function removePageBySlug(wikiPath: string, db: Db, slug: string, relPath: string): void {
   deletePage(db, slug);
   unindexPageFromSearch(db, slug);
   deleteSyncState(db, relPath);
+  void removePageFromMeili(wikiPath, slug);
 }
 
 export async function syncWikiToDb(wikiPath: string, db: Db): Promise<SyncResult> {
@@ -127,9 +129,13 @@ export async function syncWikiToDb(wikiPath: string, db: Db): Promise<SyncResult
   for (const relPath of listSyncedPaths(db, PAGE_PREFIX)) {
     const slug = slugFromPagePath(relPath);
     if (!fileSlugs.has(slug)) {
-      removePageBySlug(db, slug, relPath);
+      removePageBySlug(wikiPath, db, slug, relPath);
       result.deleted.push(slug);
     }
+  }
+
+  if (result.added.length + result.updated.length + result.deleted.length > 0) {
+    scheduleWikiIndexSync(wikiPath);
   }
 
   return result;
@@ -184,7 +190,7 @@ export function watchWiki(wikiPath: string, db: Db, opts: WatchOptions = {}): Wi
     const relPath = toPosix(relative(wikiPath, absolute));
     const slug = slugFromPagePath(relPath);
     try {
-      removePageBySlug(db, slug, relPath);
+      removePageBySlug(wikiPath, db, slug, relPath);
     } catch (err) {
       opts.onError?.(err);
       return;

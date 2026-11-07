@@ -5,6 +5,7 @@ export * from "./wiki";
 export * from "./db";
 export * from "./tasks";
 export * from "./db-pages";
+export * from "./search-meili";
 export * from "./db-sources";
 export { getChat, insertChat, updateChat, listChatRows } from "./db-chats";
 export * from "./db-usage";

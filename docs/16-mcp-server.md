@@ -69,20 +69,22 @@ than one wiki is exposed _and_ the request URL does not already name one.
 
 ### Search strategy
 
-`wiki_search` is a single interface over a list of retrieval channels
-(`SEARCH_CHANNELS` in `tools/search.ts`). Today there is exactly one channel: an
-FTS5 query using `bm25()` for ranking and `snippet()` for the excerpt. The raw
-`bm25()` value is negative and unbounded, so it is mapped monotonically into
-(0, 1] before it reaches the model.
+`wiki_search` uses **Meilisearch** when `MEILISEARCH_URL` is configured: one
+index per wiki, populated from the page files on disk and kept in step after
+ingest/edit/delete. Ranking scores come from Meilisearch's `_rankingScore`
+(already 0–1). Each wiki folder maps to a stable index uid derived from its
+absolute path, so separate wikis never mix documents.
 
-The channel interface exists because the roadmap's hybrid search
-([`14-roadmap.md`](14-roadmap.md)) is a retrieval change, not a tool-schema
-change: adding a vector channel means implementing `SearchChannel` and merging
-its hits, with no client-visible difference.
+When Meilisearch is not configured, or the instance/index is unavailable, the
+tool falls back to matching the query against page titles and tags and says so
+in `strategy`. It deliberately does not fall back to FTS5: the SQLite FTS5 index
+is still maintained for internal callers, but the product-level fallback is
+title/tag matching. This also covers the "page edited outside the app, index not
+caught up yet" case.
 
-When FTS finds nothing (usually because a page was edited outside the app and
-has not been re-indexed yet), the tool falls back to scoring titles and tags, and
-says so in `strategy` rather than claiming the wiki has no such page.
+The web UI, ingest/query/chat retrieval, and MCP all call the same core
+implementation in `packages/core/src/search-meili.ts`, so ranking and fallback
+behavior cannot drift between surfaces.
 
 ---
 

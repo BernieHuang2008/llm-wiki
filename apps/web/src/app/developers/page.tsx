@@ -644,7 +644,7 @@ const STACK: Array<{ label: string; value: string }> = [
   { label: "框架", value: "Next.js 14（App Router）" },
   { label: "界面", value: "React、Tailwind、shadcn 风格基础组件" },
   { label: "存储", value: "纯 markdown + SQLite（better-sqlite3）" },
-  { label: "检索", value: "FTS5（内置于 SQLite）" },
+  { label: "检索", value: "Meilisearch（每库一个索引），SQLite FTS5 保留为内部回退" },
   { label: "LLM SDK", value: "openai npm 包，指向 OpenRouter 基础 URL" },
   { label: "Schema 校验", value: "zod" },
   { label: "Frontmatter", value: "gray-matter" },

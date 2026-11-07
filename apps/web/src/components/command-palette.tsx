@@ -80,6 +80,14 @@ type CrossWikiPageItem = {
   title: string;
 };
 
+type ServerSearchHit = {
+  slug: string;
+  title: string;
+  type: string | null;
+  wikiPath?: string;
+  wikiName?: string;
+};
+
 export function CommandPalette() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
@@ -88,6 +96,8 @@ export function CommandPalette() {
   const [pages, setPages] = useState<PageItem[]>([]);
   const [activeWikiPath, setActiveWikiPath] = useState<string | null>(null);
   const [crossWikiPages, setCrossWikiPages] = useState<CrossWikiPageItem[]>([]);
+  const [serverHits, setServerHits] = useState<ServerSearchHit[] | null>(null);
+  const [searching, setSearching] = useState(false);
   const [chats, setChats] = useState<ChatItem[]>([]);
   const [wikis, setWikis] = useState<WikiItem[]>([]);
   const [busy, setBusy] = useState(false);
@@ -167,15 +177,78 @@ export function CommandPalette() {
     })();
   }, [open]);
 
+  // Server-side page search across every known wiki. Chats and app actions
+  // stay local because they are not part of the wiki-page index.
+  useEffect(() => {
+    const q = query.trim();
+    if (!open || q.length === 0) {
+      setServerHits(null);
+      setSearching(false);
+      return;
+    }
+    let cancelled = false;
+    setSearching(true);
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await fetch(
+            `/api/search?all=1&q=${encodeURIComponent(q)}&limit=20`,
+            { cache: "no-store" },
+          );
+          if (!res.ok) return;
+          const data = (await res.json()) as { hits: ServerSearchHit[] };
+          if (!cancelled) setServerHits(data.hits);
+        } catch {
+          // Leave the previous result set; local actions still work.
+        } finally {
+          if (!cancelled) setSearching(false);
+        }
+      })();
+    }, 180);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query, open]);
+
   const items = useMemo<Action[]>(() => {
-    const pageActions: Action[] = pages.map((p) => ({
-      type: "navigate",
-      id: `page-${p.slug}`,
-      label: p.title,
-      hint: p.slug,
-      group: "页面",
-      href: `/wiki/${p.slug}`,
-    }));
+    const needle = query.trim().toLowerCase();
+    const serverPageActions: Action[] =
+      needle.length > 0 && serverHits
+        ? serverHits.map((h): Action => {
+            const isActive = !h.wikiPath || h.wikiPath === activeWikiPath;
+            if (isActive) {
+              return {
+                type: "navigate",
+                id: `search-${h.slug}`,
+                label: h.title,
+                hint: h.slug,
+                group: "页面",
+                href: `/wiki/${h.slug}`,
+              };
+            }
+            return {
+              type: "switch-then-open",
+              id: `search-${h.wikiPath}-${h.slug}`,
+              label: h.title,
+              hint: `${h.wikiName ?? h.wikiPath} → ${h.slug}`,
+              group: "跨库页面",
+              wikiPath: h.wikiPath!,
+              pageSlug: h.slug,
+            };
+          })
+        : [];
+    const pageActions: Action[] =
+      needle.length === 0
+        ? pages.map((p) => ({
+            type: "navigate",
+            id: `page-${p.slug}`,
+            label: p.title,
+            hint: p.slug,
+            group: "页面",
+            href: `/wiki/${p.slug}`,
+          }))
+        : [];
     const chatActions: Action[] = chats.map((c) => ({
       type: "navigate",
       id: `chat-${c.id}`,
@@ -192,15 +265,18 @@ export function CommandPalette() {
       group: "知识库",
       path: w.path,
     }));
-    const crossPageActions: Action[] = crossWikiPages.map((p) => ({
-      type: "switch-then-open",
-      id: `cross-${p.wikiPath}-${p.slug}`,
-      label: p.title,
-      hint: `${p.wikiTopic ?? p.wikiPath.split("/").pop()} → ${p.slug}`,
-      group: "跨库页面",
-      wikiPath: p.wikiPath,
-      pageSlug: p.slug,
-    }));
+    const crossPageActions: Action[] =
+      needle.length === 0
+        ? crossWikiPages.map((p) => ({
+            type: "switch-then-open",
+            id: `cross-${p.wikiPath}-${p.slug}`,
+            label: p.title,
+            hint: `${p.wikiTopic ?? p.wikiPath.split("/").pop()} → ${p.slug}`,
+            group: "跨库页面",
+            wikiPath: p.wikiPath,
+            pageSlug: p.slug,
+          }))
+        : [];
     const appActions: Action[] = [
       {
         type: "toggle-theme",
@@ -230,14 +306,16 @@ export function CommandPalette() {
       ...chatActions,
       ...crossPageActions,
     ];
-    const needle = query.trim().toLowerCase();
     if (!needle) return combined;
-    return combined.filter(
+    const localMatches = combined.filter(
       (a) =>
         a.label.toLowerCase().includes(needle) ||
         (a.hint?.toLowerCase().includes(needle) ?? false),
     );
-  }, [pages, chats, query]);
+    // Server hits are already matched (and may be semantic), so they bypass
+    // the substring filter above.
+    return [...localMatches, ...serverPageActions];
+  }, [pages, chats, query, serverHits, activeWikiPath]);
 
   const grouped = useMemo(() => {
     const map = new Map<Action["group"], Action[]>();
@@ -377,7 +455,7 @@ export function CommandPalette() {
         <ul ref={listRef} className="max-h-[50vh] overflow-y-auto py-1">
           {flatItems.length === 0 ? (
             <li className="px-3 py-4 text-center text-sm text-muted-foreground">
-              没有匹配项。
+              {searching ? "搜索中…" : "没有匹配项。"}
             </li>
           ) : (
             Array.from(grouped.entries()).map(([group, list]) => (

@@ -9,6 +9,7 @@ import {
   upsertPage,
 } from "./db-pages";
 import { upsertSyncState } from "./db-sync";
+import { removePageFromMeili, scheduleWikiIndexSync } from "./search-meili";
 import { withWriteLock } from "./write-lock";
 import {
   parseIndexEntries,
@@ -120,6 +121,7 @@ async function applyManualEditUnlocked(
   // after fixes because the index summary was generated from pre-fix
   // content).
   await refreshIndexEntryForSlug(wikiPath, db, slug);
+  scheduleWikiIndexSync(wikiPath);
 
   return { slug, page: nextPage, backupPath };
 }
@@ -321,6 +323,7 @@ async function createPageUnlocked(
   // Add this slug to index.md so the new page is visible from /wiki without
   // waiting for the next ingest or rebuild.
   await refreshIndexEntryForSlug(wikiPath, db, input.slug);
+  scheduleWikiIndexSync(wikiPath);
 
   return page;
 }
@@ -423,6 +426,9 @@ async function softDeletePageUnlocked(
     `## [${ts}] delete | ${slug} (trashed → ${WIKI_TRASH_DIR}/${trashFilename})`,
   );
 
+  void removePageFromMeili(wikiPath, slug);
+  scheduleWikiIndexSync(wikiPath);
+
   return { slug, trashFilename, trashPath, backlinkSlugs };
 }
 
@@ -524,6 +530,7 @@ async function restoreDeletedPageUnlocked(
 
   // Add to index.md if it wasn't already there.
   await refreshIndexEntryForSlug(wikiPath, db, slug);
+  scheduleWikiIndexSync(wikiPath);
 
   const ts = new Date().toISOString().replace("T", " ").slice(0, 16);
   await appendLog(wikiPath, `## [${ts}] restore | ${slug} (from trash)`);

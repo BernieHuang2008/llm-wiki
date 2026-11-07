@@ -9,9 +9,9 @@ import {
   getPage,
   indexPageForSearch,
   linkPageSource,
-  searchPages,
   upsertPage,
 } from "./db-pages";
+import { scheduleWikiIndexSync, searchPagesUnified } from "./search-meili";
 import { insertSource, listSourceRows, updateSource } from "./db-sources";
 import { upsertSyncState } from "./db-sync";
 import { insertUsage } from "./db-usage";
@@ -452,7 +452,7 @@ async function loadRelevantPages(
   const queryText = `${source.title} ${source.content.slice(0, 500)}`;
   let hits: Array<{ slug: string; title: string }> = [];
   try {
-    hits = searchPages(db, queryText, TOP_K_RELEVANT_PAGES);
+    hits = await searchPagesUnified(wikiPath, db, queryText, TOP_K_RELEVANT_PAGES);
   } catch {
     // Empty FTS5 index (no pages yet) or malformed query — skip silently.
     hits = [];
@@ -585,6 +585,10 @@ async function applyIngestResponseUnlocked(opts: ApplyIngestResponseOptions): Pr
 
   const logLine = formatLogEntry(opts.sourceTitle, opts.format, response);
   await appendLog(wikiPath, logLine);
+
+  // Push the new/updated pages into Meilisearch without blocking the write
+  // path. The debounce coalesces multi-page ingests into one reindex.
+  scheduleWikiIndexSync(wikiPath);
 }
 
 function upsertWikiRowAndIndex(
