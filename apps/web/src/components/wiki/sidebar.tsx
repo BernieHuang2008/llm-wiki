@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { HighlightedText, stripHighlightMarkers } from "@/components/highlighted-text";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
@@ -184,9 +185,9 @@ export function WikiSidebar() {
                               ? "bg-primary/10 text-foreground"
                               : "text-foreground/70 hover:bg-accent/60",
                           )}
-                          title={p.title}
+                          title={stripHighlightMarkers(p.title)}
                         >
-                          {p.title}
+                          <HighlightedText text={p.title} />
                         </Link>
                       </li>
                     ))}

@@ -68,6 +68,13 @@ type MeiliHit = {
   _rankingScore?: number;
 };
 
+// Sentinel characters wrapped around matched substrings in Meilisearch's
+// `_formatted` output. They live in the Unicode private-use area, so they
+// cannot collide with literal `**` markdown in page text while staying valid
+// JSON for the API boundary.
+export const HIGHLIGHT_START = "\uE000";
+export const HIGHLIGHT_END = "\uE001";
+
 const MAX_RESULTS_CAP = 50;
 const SNIPPET_MAX = 2000;
 const SNIPPET_MIN = 40;
@@ -372,8 +379,8 @@ export async function searchWikiInMeili(
         cropLength: Math.max(20, Math.ceil(snippetLength / 6)),
         cropMarker: "…",
         attributesToHighlight: ["title", "content", "tags"],
-        highlightPreTag: "**",
-        highlightPostTag: "**",
+        highlightPreTag: HIGHLIGHT_START,
+        highlightPostTag: HIGHLIGHT_END,
         showRankingScore: true,
         ...(buildFilter(options) ? { filter: buildFilter(options) } : {}),
       }),
@@ -406,6 +413,11 @@ export async function searchWikiInMeili(
 
 function stripHighlightPadding(text: string): string {
   return text.replace(/\s+/g, " ").trim();
+}
+
+/** Remove the highlight sentinels for callers that want plain text (e.g. RAG). */
+export function stripHighlights(text: string): string {
+  return text.split(HIGHLIGHT_START).join("").split(HIGHLIGHT_END).join("");
 }
 
 function round4(value: number): number {
@@ -492,7 +504,11 @@ export async function searchPagesUnified(
   limit = 20,
 ): Promise<Array<{ slug: string; title: string; snippet: string }>> {
   const { hits } = await searchWikiPages(wikiPath, db, { query, limit });
-  return hits.map((h) => ({ slug: h.slug, title: h.title, snippet: h.snippet }));
+  return hits.map((h) => ({
+    slug: h.slug,
+    title: stripHighlights(h.title),
+    snippet: stripHighlights(h.snippet),
+  }));
 }
 
 /** Index name shown in Settings / diagnostics. */

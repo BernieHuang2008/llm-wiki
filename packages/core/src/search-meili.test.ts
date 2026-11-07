@@ -90,7 +90,10 @@ describe("searchWikiInMeili", () => {
               title: "Shor's Algorithm",
               type: "concept",
               tags: ["quantum"],
-              _formatted: { title: "**Shor's** Algorithm", content: "**Shor** factors integers…" },
+              _formatted: {
+                title: "\uE000Shor's\uE001 Algorithm",
+                content: "\uE000Shor\uE001 factors integers…",
+              },
               _rankingScore: 0.87,
             },
           ],
@@ -104,7 +107,7 @@ describe("searchWikiInMeili", () => {
     expect(hits).toHaveLength(1);
     expect(hits?.[0]).toMatchObject({
       slug: "shors-algorithm",
-      title: "**Shor's** Algorithm",
+      title: "\uE000Shor's\uE001 Algorithm",
       channel: "meili",
       type: "concept",
       score: 0.87,

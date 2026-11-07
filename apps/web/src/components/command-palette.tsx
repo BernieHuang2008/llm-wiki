@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useTheme } from "@/components/theme-provider";
+import { HighlightedText } from "@/components/highlighted-text";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
@@ -479,7 +480,9 @@ export function CommandPalette() {
                             activeIndex === idx ? "bg-accent" : "hover:bg-accent/60",
                           )}
                         >
-                          <span className="truncate">{item.label}</span>
+                          <span className="truncate">
+                            <HighlightedText text={item.label} />
+                          </span>
                           {item.hint ? (
                             <span className="shrink-0 truncate text-xs text-muted-foreground">
                               {item.hint}
