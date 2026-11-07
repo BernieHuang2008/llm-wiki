@@ -5,7 +5,13 @@
 // produced is the server's business, so a future vector channel can be added
 // behind `SearchChannel` without changing the tool schema or any client.
 
-import { buildExcerpt, type Db } from "@llm-wiki/core";
+import {
+  buildExcerpt,
+  meiliEnabled,
+  searchWikiInMeili,
+  type Db,
+  type WikiSearchHit,
+} from "@llm-wiki/core";
 
 export type SearchHit = {
   path: string;
@@ -19,7 +25,7 @@ export type SearchHit = {
   tags: string[];
 };
 
-export type SearchChannelName = "bm25" | "vector";
+export type SearchChannelName = "bm25" | "meili" | "vector";
 
 export type SearchOptions = {
   query: string;
@@ -37,9 +43,9 @@ const SNIPPET_MAX = 2000;
 const SNIPPET_MIN = 40;
 
 /**
- * A retrieval channel. BM25 is the only implementation today; the interface
- * exists so the hybrid mode promised by the tool can land without a contract
- * change (see docs/16-mcp-server.md § search strategy).
+ * A retrieval channel used when Meilisearch is not configured. The interface
+ * keeps the FTS5 path replaceable without a tool-contract change (see
+ * docs/16-mcp-server.md § search strategy).
  */
 export type SearchChannel = {
   name: SearchChannelName;
@@ -144,16 +150,49 @@ const bm25Channel: SearchChannel = {
   },
 };
 
-/** The channel list, in the order results are merged. */
+/** Local-only fallback channels (Meilisearch disabled). */
 export const SEARCH_CHANNELS: readonly SearchChannel[] = [bm25Channel];
 
-export function search(
+function fromWikiHit(hit: WikiSearchHit): SearchHit {
+  return {
+    path: hit.path,
+    title: hit.title,
+    snippet: hit.snippet,
+    score: hit.score,
+    channel: "meili",
+    type: hit.type,
+    tags: hit.tags,
+  };
+}
+
+/**
+ * Search one wiki. Meilisearch is the primary channel when configured; an
+ * outage returns no hits so the caller can run its title/tag fallback. Without
+ * Meilisearch configured (plain local install), the SQLite FTS5 channel keeps
+ * MCP search working.
+ */
+export async function search(
+  wikiPath: string,
   db: Db,
   options: SearchOptions,
-): {
+): Promise<{
   hits: SearchHit[];
-  mode: "bm25" | "hybrid";
-} {
+  mode: "bm25" | "meili" | "metadata" | "hybrid";
+}> {
+  if (meiliEnabled()) {
+    const hits = await searchWikiInMeili(wikiPath, {
+      query: options.query,
+      limit: options.maxResults,
+      snippetLength: options.snippetLength,
+      type: options.type ?? null,
+      tags: options.tags ?? [],
+    });
+    if (hits && hits.length > 0) {
+      return { hits: hits.map(fromWikiHit), mode: "meili" };
+    }
+    return { hits: [], mode: "metadata" };
+  }
+
   const merged: SearchHit[] = [];
   for (const channel of SEARCH_CHANNELS) {
     merged.push(...channel.search(db, options));

@@ -11,7 +11,7 @@ type PageSummary = {
   slug: string;
   title: string;
   type: string;
-  updated_at: string;
+  updated_at?: string;
 };
 
 const TYPE_ORDER = ["overview", "concept", "entity", "comparison", "source"];
@@ -26,6 +26,8 @@ const TYPE_LABEL: Record<string, string> = {
 export function WikiSidebar() {
   const [pages, setPages] = useState<PageSummary[] | null>(null);
   const [filter, setFilter] = useState("");
+  const [searchHits, setSearchHits] = useState<PageSummary[] | null>(null);
+  const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pathname = usePathname();
 
@@ -47,14 +49,63 @@ export function WikiSidebar() {
     };
   }, [pathname]);
 
+  // Server-side search: title/tag matching or Meilisearch, depending on
+  // configuration. The empty query keeps the full page list.
+  useEffect(() => {
+    const query = filter.trim();
+    if (query.length === 0) {
+      setSearchHits(null);
+      setSearching(false);
+      return;
+    }
+    let cancelled = false;
+    setSearching(true);
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await fetch(
+            `/api/search?q=${encodeURIComponent(query)}&limit=50`,
+            { cache: "no-store" },
+          );
+          if (!res.ok) return;
+          const data = (await res.json()) as {
+            hits: Array<{ slug: string; title: string; type: string | null }>;
+          };
+          if (!cancelled) {
+            setSearchHits(
+              data.hits.map((h) => ({
+                slug: h.slug,
+                title: h.title,
+                type: h.type ?? "concept",
+              })),
+            );
+          }
+        } catch {
+          // Keep the previous list; the input remains responsive.
+        } finally {
+          if (!cancelled) setSearching(false);
+        }
+      })();
+    }, 180);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [filter]);
+
   const grouped = useMemo(() => {
-    if (!pages) return null;
+    const source = searchHits ?? pages;
+    if (!source) return null;
     const needle = filter.trim().toLowerCase();
-    const filtered = needle
-      ? pages.filter(
-          (p) => p.slug.includes(needle) || p.title.toLowerCase().includes(needle),
-        )
-      : pages;
+    // When the query went to the server, it already matched. Only the local
+    // full list needs the cheap substring filter.
+    const filtered = searchHits
+      ? source
+      : needle
+        ? source.filter(
+            (p) => p.slug.includes(needle) || p.title.toLowerCase().includes(needle),
+          )
+        : source;
     const byType = new Map<string, PageSummary[]>();
     for (const p of filtered) {
       const list = byType.get(p.type) ?? [];
@@ -63,7 +114,7 @@ export function WikiSidebar() {
     }
     for (const list of byType.values()) list.sort((a, b) => a.title.localeCompare(b.title));
     return byType;
-  }, [pages, filter]);
+  }, [pages, searchHits, filter]);
 
   const activeSlug = pathname.startsWith("/wiki/") ? pathname.slice("/wiki/".length) : null;
   const isIndex = pathname === "/wiki";
@@ -98,7 +149,13 @@ export function WikiSidebar() {
         {!pages && !error ? (
           <p className="px-3 text-caption text-muted-foreground">加载中…</p>
         ) : null}
-        {pages && pages.length === 0 ? (
+        {searching ? (
+          <p className="px-3 text-caption text-muted-foreground">搜索中…</p>
+        ) : null}
+        {!searching && searchHits && searchHits.length === 0 ? (
+          <p className="px-3 text-caption text-muted-foreground">没有匹配的页面。</p>
+        ) : null}
+        {pages && pages.length === 0 && filter.trim().length === 0 ? (
           <div className="mx-2 mt-2 rounded-md border border-dashed border-border/70 bg-background/40 px-3 py-3 text-caption text-muted-foreground">
             还没有页面。前往{" "}
             <Link href="/sources" className="text-foreground underline underline-offset-2">

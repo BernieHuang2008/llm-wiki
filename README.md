@@ -243,7 +243,13 @@ sudo pacman -S base-devel python libsecret
 
 **ChromeOS** — enable [Crostini Linux dev environment](https://chromeos.dev/en/linux), then follow the Linux path.
 
-**Docker** — not officially shipped, but works fine: `node:20-bookworm` base image, install the tarball, bind-mount your wiki folder. PR with a Dockerfile welcome.
+**Docker** — `docker-compose.yml` starts the app plus a Meilisearch sidecar. The app is published on `3000`/`5040`; Meilisearch is **not** published to the host and lives only on an internal Compose network, so only the LLM Wiki container can reach it. Its data directory is `./data/wiki/.llm-wiki/meili`, inside the wiki folder.
+
+```bash
+MEILISEARCH_API_KEY=change-me docker compose up -d --build
+```
+
+A one-shot `init-data` service creates `./data/wiki` / `./data/config` and hands them to the image's `llmwiki` user (uid 1001). Search uses Meilisearch when `MEILISEARCH_URL` is set; without it (or if the instance is down) the app falls back to matching page titles and tags. One index is created per wiki.
 
 **Mobile (iOS / Android)** — not supported. LLM Wiki is a local server, not a packaged mobile app. The V2 Tauri installer (roadmapped) targets desktop OSes, not phones.
 

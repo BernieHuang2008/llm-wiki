@@ -18,6 +18,7 @@ import {
   missingKeyProvider,
   openDb,
   purgeOldTrash,
+  scheduleWikiIndexSync,
   syncWikiToDb,
   wikiSettingsPath,
   type Db,
@@ -35,6 +36,10 @@ const PURGE_INTERVAL_MS = 60 * 60 * 1000;
 // coded cost_cents: null); once per wiki per process is enough. Switching
 // wikis adds the new path to the set on first open.
 const backfilledWikis = new Set<string>();
+
+// One initial Meilisearch build per wiki per process. Ongoing edits schedule
+// their own debounced reindex from sync.ts / the write helpers.
+const searchIndexInitialized = new Set<string>();
 
 /**
  * Resolution order (docs/13-multi-wiki.md):
@@ -127,6 +132,12 @@ export async function openWikiContext(): Promise<WikiContext> {
   } catch (err) {
     db.close();
     throw err;
+  }
+  // Build the Meilisearch index once per wiki per process; later edits are
+  // scheduled by the write helpers. No-op when MEILISEARCH_URL is unset.
+  if (!searchIndexInitialized.has(wikiPath)) {
+    searchIndexInitialized.add(wikiPath);
+    scheduleWikiIndexSync(wikiPath);
   }
   const settings = await loadWikiSettings(wikiPath);
 

@@ -111,7 +111,7 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
             type: args.type ?? null,
             tags: args.tags ?? [],
           };
-          const { hits, mode } = search(conn.db, options);
+          const { hits, mode } = await search(conn.ref.path, conn.db, options);
 
           if (hits.length === 0) {
             // Metadata-only fallback: keeps the tool useful while a page edited

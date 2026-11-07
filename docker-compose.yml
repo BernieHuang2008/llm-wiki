@@ -1,0 +1,83 @@
+# LLM Wiki + Meilisearch.
+#
+# Meilisearch is reachable only from the llm-wiki container: it joins the
+# `search` network, which is marked `internal` and publishes no ports. The host
+# can reach the app (3000/5040) but not Meilisearch (7700).
+#
+# The Meilisearch data directory lives inside the wiki folder so backup/export
+# of `data/wiki` captures the index too:
+#   ./data/wiki/.llm-wiki/meili
+#
+# Set a real key before exposing this beyond your machine:
+#   MEILISEARCH_API_KEY=... docker compose up -d
+# Without the env var a local-only default is used.
+
+name: llm-wiki
+
+services:
+  # Bind mounts are created by the Docker daemon as root. Give them to the
+  # image's `llmwiki` user (uid 1001) before the app starts, otherwise the
+  # first write to /data/wiki fails with EACCES.
+  init-data:
+    image: busybox:1.36
+    container_name: llm-wiki-init-data
+    user: "0:0"
+    command: >
+      sh -c "mkdir -p /data/wiki/.llm-wiki/meili /data/config &&
+             chown -R 1001:1001 /data/wiki /data/config"
+    volumes:
+      - ./data/wiki:/data/wiki
+      - ./data/config:/data/config
+    restart: "no"
+
+  llm-wiki:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: llm-wiki
+    restart: unless-stopped
+    ports:
+      - "${LLM_WIKI_PORT:-3000}:3000"
+      - "${LLM_WIKI_MCP_PORT:-5040}:5040"
+    environment:
+      LLM_WIKI_PATH: /data/wiki
+      LLM_WIKI_CONFIG_DIR: /data/config
+      LLM_WIKI_MCP_HOST: 0.0.0.0
+      MEILISEARCH_URL: http://meilisearch:7700
+      MEILISEARCH_API_KEY: ${MEILISEARCH_API_KEY:-llm-wiki-local-key}
+    volumes:
+      - ./data/wiki:/data/wiki
+      - ./data/config:/data/config
+    depends_on:
+      init-data:
+        condition: service_completed_successfully
+      meilisearch:
+        condition: service_started
+    networks:
+      - default
+      - search
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.12
+    container_name: llm-wiki-meilisearch
+    restart: unless-stopped
+    environment:
+      MEILI_ENV: production
+      MEILI_MASTER_KEY: ${MEILISEARCH_API_KEY:-llm-wiki-local-key}
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_HTTP_ADDR: 0.0.0.0:7700
+    volumes:
+      - ./data/wiki/.llm-wiki/meili:/meili_data
+    # The bind mount is created by the Docker daemon as root; running Meili as
+    # root lets it write there without a manual chown. It is still isolated on
+    # the internal network and never published to the host.
+    user: "0:0"
+    depends_on:
+      init-data:
+        condition: service_completed_successfully
+    networks:
+      - search
+
+networks:
+  search:
+    internal: true

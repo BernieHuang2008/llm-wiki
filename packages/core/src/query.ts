@@ -1,7 +1,7 @@
 import { callLLM, estimateCostCents, type LlmClient } from "@llm-wiki/llm";
 
 import type { Db } from "./db";
-import { searchPages } from "./db-pages";
+import { searchPagesUnified } from "./search-meili";
 import { recordRun } from "./db-runs";
 import { insertUsage } from "./db-usage";
 import { buildQueryPrompt } from "./prompts/query";
@@ -120,7 +120,7 @@ async function loadRelevantPages(
 ): Promise<ExistingPageSnippet[]> {
   let hits: Array<{ slug: string; title: string }> = [];
   try {
-    hits = searchPages(db, question, TOP_K_RELEVANT_PAGES);
+    hits = await searchPagesUnified(wikiPath, db, question, TOP_K_RELEVANT_PAGES);
   } catch {
     hits = [];
   }

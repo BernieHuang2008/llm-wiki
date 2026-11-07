@@ -29,7 +29,7 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
   {
     id: "wiki_search",
     label: "搜索",
-    summary: "全文检索：返回匹配页面的路径、标题、摘要与相关性得分。",
+    summary: "全文检索（Meilisearch）：返回匹配页面的路径、标题、摘要与相关性得分。",
   },
   {
     id: "wiki_read_page",

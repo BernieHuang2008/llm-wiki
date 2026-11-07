@@ -86,7 +86,7 @@ const TOOL_LABELS: Record<McpToolId, string> = {
 };
 
 const TOOL_SUMMARIES: Record<McpToolId, string> = {
-  wiki_search: "全文检索，返回路径、标题、摘要与相关性得分。",
+  wiki_search: "全文检索（Meilisearch），返回路径、标题、摘要与相关性得分。",
   wiki_read_page: "按路径读取整页：正文、frontmatter、出站与入站链接。",
   wiki_list_pages: "浏览全部页面，可按类型、标签过滤。",
   wiki_get_toc: "提取标题层级、锚点、行号范围与内容预览。",
