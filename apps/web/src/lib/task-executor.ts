@@ -68,6 +68,7 @@ import {
   appendLiveThinking,
   beginLiveStream,
   finishLiveStream,
+  requestLiveWriteApproval,
   setLiveRound,
   setLiveStreamProgress,
   upsertLiveTool,
@@ -699,6 +700,9 @@ async function runChat(task: TaskRow, ctx: WikiContext, signal: AbortSignal): Pr
     client: capture.client,
     skipUserAppend: input.userMessageSaved === true,
     signal,
+    // The first write of the turn blocks here until the chat UI answers the
+    // prompt; later writes in the same turn pass straight through in core.
+    requestWriteApproval: (request) => requestLiveWriteApproval(task.id, request, signal),
     onDelta: (delta) => appendLiveText(task.id, delta),
     onEvent: (event) => {
       if (event.type === "round") {

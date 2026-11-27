@@ -19,6 +19,7 @@ import {
   runChatAgent,
   type ChatAgentEvent,
   type ChatAgentTrace,
+  type ChatWriteApprovalRequest,
 } from "./chat-agent";
 import { insertUsage } from "./db-usage";
 import { buildChatAgentSystemPrompt } from "./prompts/chat";
@@ -440,6 +441,11 @@ export type SendChatMessageOptions = {
   onDelta?: (delta: string) => void;
   /** Reasoning, tool-call and content events from the agent loop. */
   onEvent?: (event: ChatAgentEvent) => void;
+  /**
+   * Resolves the first write tool's approval prompt for this turn. The web
+   * executor wires this to the live task stream; without it writes are denied.
+   */
+  requestWriteApproval?: (request: ChatWriteApprovalRequest) => Promise<boolean>;
   /** Aborts the turn; the user's Stop button is wired to this. */
   signal?: AbortSignal;
 };
@@ -494,6 +500,7 @@ export async function sendChatMessage(
       messages: chat.messages.map((m) => ({ role: m.role, content: m.content })),
       ...(maxSteps !== undefined ? { maxSteps } : {}),
       ...(opts.signal ? { signal: opts.signal } : {}),
+      ...(opts.requestWriteApproval ? { requestWriteApproval: opts.requestWriteApproval } : {}),
       onEvent: (event) => {
         if (event.type === "content" && opts.onDelta) opts.onDelta(event.text);
         opts.onEvent?.(event);

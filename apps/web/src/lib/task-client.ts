@@ -113,6 +113,19 @@ export async function cancelTask(id: string): Promise<void> {
   }
 }
 
+/** Answers the write prompt the agent is currently blocked on. */
+export async function respondToWriteApproval(id: string, approved: boolean): Promise<void> {
+  const res = await fetch(`/api/tasks/${id}/approval`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ approved }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? `HTTP ${res.status}`);
+  }
+}
+
 /**
  * Polls a task until it finishes, then resolves with the terminal row.
  *
@@ -151,10 +164,19 @@ export type AgentTrace = {
   round?: number;
 };
 
+/** A wiki write waiting for the user's yes/no in this turn. */
+export type WriteApprovalRequest = {
+  id: string;
+  toolName: string;
+  summary: string;
+  arguments: string;
+};
+
 export type LiveTaskSnapshot = {
   text: string;
   progress: string | null;
   trace?: AgentTrace;
+  approval?: WriteApprovalRequest | null;
 };
 
 export type LiveTaskHandlers = {
@@ -170,6 +192,10 @@ export type LiveTaskHandlers = {
   onRound?: (round: number) => void;
   /** A tool call started or changed status. */
   onTool?: (tool: AgentToolTrace) => void;
+  /** A write tool is blocked until the user approves it. */
+  onApprovalRequest?: (request: WriteApprovalRequest) => void;
+  /** A pending write request was answered (or withdrawn). */
+  onApprovalResolved?: (id: string, approved: boolean) => void;
   /** Phase label ("正在生成回复…") for the stretches with no text yet. */
   onProgress?: (progress: string | null) => void;
   /** The last attempt failed but the task is queued again. */
@@ -226,13 +252,19 @@ export function watchTaskLive(id: string, handlers: LiveTaskHandlers = {}): Live
       });
     };
 
-    on<{ text: string; progress: string | null; trace?: AgentTrace }>("snapshot", (data) => {
+    on<{
+      text: string;
+      progress: string | null;
+      trace?: AgentTrace;
+      approval?: WriteApprovalRequest | null;
+    }>("snapshot", (data) => {
       connected = true;
       errorsAfterConnect = 0;
       handlers.onSnapshot?.({
         text: data.text,
         progress: data.progress,
         ...(data.trace ? { trace: data.trace } : {}),
+        approval: data.approval ?? null,
       });
     });
     on<Record<string, never>>("reset", () => handlers.onReset?.());
@@ -241,6 +273,12 @@ export function watchTaskLive(id: string, handlers: LiveTaskHandlers = {}): Live
     on<{ round: number }>("round", (data) => handlers.onRound?.(data.round));
     on<{ tool: AgentToolTrace }>("tool_call", (data) => handlers.onTool?.(data.tool));
     on<{ tool: AgentToolTrace }>("tool_result", (data) => handlers.onTool?.(data.tool));
+    on<{ request: WriteApprovalRequest }>("approval_request", (data) =>
+      handlers.onApprovalRequest?.(data.request),
+    );
+    on<{ id: string; approved: boolean }>("approval_resolved", (data) =>
+      handlers.onApprovalResolved?.(data.id, data.approved),
+    );
     on<{ progress: string | null }>("progress", (data) => handlers.onProgress?.(data.progress));
     on<{ error: string | null }>("retrying", (data) => handlers.onRetrying?.(data.error));
     on<{ task: PublicTask | null }>("done", (data) => finish(data.task));

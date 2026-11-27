@@ -26,6 +26,8 @@ export const runtime = "nodejs";
  *   thinking  { text }                              — reasoning-token delta
  *   tool_call { tool }                              — a tool started
  *   tool_result { tool }                            — a tool finished/failed
+ *   approval_request { request }                    — a write is blocked on the user
+ *   approval_resolved { id, approved }              — the user answered
  *   progress  { progress }                          — phase label changed
  *   retrying  { error }                             — attempt failed, task requeued
  *   done      { task }                              — terminal; stream closes
@@ -133,6 +135,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
             status: isActiveTaskStatus(task.status) ? "running" : "failed",
             error: task.error,
             trace: { thinking: "", tools: [] },
+            approval: null,
             finished: !isActiveTaskStatus(task.status),
           },
         );
@@ -167,6 +170,14 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         }
         if (event.type === "tool_call" || event.type === "tool_result") {
           send(event.type, { tool: event.tool });
+          return;
+        }
+        if (event.type === "approval_request") {
+          send("approval_request", { request: event.request });
+          return;
+        }
+        if (event.type === "approval_resolved") {
+          send("approval_resolved", { id: event.id, approved: event.approved });
           return;
         }
         if (event.type === "reset") {

@@ -1,13 +1,18 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { LlmClient } from "@llm-wiki/llm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { ChatAgentAbortedError, runChatAgent, type ChatAgentEvent } from "./chat-agent";
-import type { Db } from "./db";
-import { initWikiFolder, WIKI_PATHS } from "./wiki";
+import {
+  ChatAgentAbortedError,
+  runChatAgent,
+  type ChatAgentEvent,
+  type ChatWriteApprovalRequest,
+} from "./chat-agent";
+import { openInMemoryDb, type Db } from "./db";
+import { initWikiFolder, readPage, WIKI_PATHS } from "./wiki";
 
 let wikiPath: string;
 let db: Db;
@@ -127,4 +132,141 @@ describe("runChatAgent", () => {
     expect(aborted.trace.thinking).toContain("thinking");
     expect(aborted.partialText).toBe("partial answer");
   });
+
+  it("asks approval once for the first write and then writes freely within the turn", async () => {
+    const localDb = openInMemoryDb();
+    try {
+      const client = agentClient([
+        toolCallStep(
+          "wiki_create_page",
+          {
+            slug: "first-page",
+            title: "First",
+            type: "concept",
+            content: "First body.\n",
+          },
+          "call_1",
+        ),
+        toolCallStep(
+          "wiki_create_page",
+          {
+            slug: "second-page",
+            title: "Second",
+            type: "concept",
+            content: "Second body.\n",
+          },
+          "call_2",
+        ),
+        answerStep("Created both pages."),
+      ]);
+      const approvals: ChatWriteApprovalRequest[] = [];
+
+      const result = await runChatAgent({
+        wikiPath,
+        db: localDb,
+        client,
+        model: "stub",
+        system: "test",
+        messages: [{ role: "user", content: "add two pages" }],
+        requestWriteApproval: async (request) => {
+          approvals.push(request);
+          return true;
+        },
+      });
+
+      expect(approvals).toHaveLength(1);
+      expect(approvals[0]).toMatchObject({ toolName: "wiki_create_page" });
+      expect((await readPage(wikiPath, "first-page")).content).toContain("First body.");
+      expect((await readPage(wikiPath, "second-page")).content).toContain("Second body.");
+      expect(result.trace.tools.filter((tool) => tool.status === "ok")).toHaveLength(2);
+    } finally {
+      localDb.close();
+    }
+  });
+
+  it("denies every write in the turn after the first request is declined", async () => {
+    const localDb = openInMemoryDb();
+    try {
+      const client = agentClient([
+        toolCallStep(
+          "wiki_create_page",
+          {
+            slug: "denied-page",
+            title: "Denied",
+            type: "concept",
+            content: "Nope.\n",
+          },
+          "call_1",
+        ),
+        toolCallStep(
+          "wiki_create_page",
+          {
+            slug: "also-denied",
+            title: "Also denied",
+            type: "concept",
+            content: "Nope.\n",
+          },
+          "call_2",
+        ),
+        answerStep("Here is the proposed page instead."),
+      ]);
+      const approvals: ChatWriteApprovalRequest[] = [];
+
+      const result = await runChatAgent({
+        wikiPath,
+        db: localDb,
+        client,
+        model: "stub",
+        system: "test",
+        messages: [{ role: "user", content: "add a page" }],
+        requestWriteApproval: async (request) => {
+          approvals.push(request);
+          return false;
+        },
+      });
+
+      expect(approvals).toHaveLength(1);
+      await expect(access(join(wikiPath, WIKI_PATHS.wiki, "denied-page.md"))).rejects.toThrow();
+      await expect(access(join(wikiPath, WIKI_PATHS.wiki, "also-denied.md"))).rejects.toThrow();
+      expect(result.text).toContain("proposed page");
+      expect(result.trace.tools.every((tool) => tool.status === "error")).toBe(true);
+    } finally {
+      localDb.close();
+    }
+  });
 });
+
+function toolCallStep(
+  name: string,
+  args: Record<string, unknown>,
+  id: string,
+): AsyncGenerator<unknown> {
+  return (async function* () {
+    yield chunk({
+      tool_calls: [
+        {
+          index: 0,
+          id,
+          type: "function",
+          function: { name, arguments: JSON.stringify(args) },
+        },
+      ],
+    });
+    yield {
+      model: "stub",
+      choices: [{ delta: {} }],
+      usage: { prompt_tokens: 10, completion_tokens: 5 },
+    };
+  })();
+}
+
+function answerStep(text: string): AsyncGenerator<unknown> {
+  return (async function* () {
+    yield chunk({ content: text });
+    yield {
+      model: "stub",
+      choices: [{ delta: {} }],
+      usage: { prompt_tokens: 10, completion_tokens: 5 },
+    };
+  })();
+}

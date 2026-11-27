@@ -20,6 +20,18 @@ export type LiveStreamStatus = "running" | "succeeded" | "failed" | "canceled";
 
 export type AgentTrace = ChatAgentTrace;
 
+/**
+ * A wiki write the agent wants to perform, paused until the user answers.
+ * Mirrors the core agent's request; kept local so the client can import it
+ * without pulling core into a browser bundle.
+ */
+export type WriteApprovalRequest = {
+  id: string;
+  toolName: string;
+  summary: string;
+  arguments: string;
+};
+
 export type LiveStreamSnapshot = {
   taskId: string;
   text: string;
@@ -27,6 +39,8 @@ export type LiveStreamSnapshot = {
   status: LiveStreamStatus;
   error: string | null;
   trace: AgentTrace;
+  /** The write awaiting approval, or null when nothing is blocked. */
+  approval: WriteApprovalRequest | null;
   /** True once no further delta can arrive for this task. */
   finished: boolean;
 };
@@ -39,10 +53,17 @@ export type LiveStreamEvent =
   | { type: "thinking"; text: string }
   | { type: "tool_call"; tool: ChatAgentToolTrace }
   | { type: "tool_result"; tool: ChatAgentToolTrace }
+  | { type: "approval_request"; request: WriteApprovalRequest }
+  | { type: "approval_resolved"; id: string; approved: boolean }
   | { type: "progress"; progress: string | null }
   | { type: "end"; status: "succeeded" | "failed" | "canceled"; error: string | null };
 
 export type LiveStreamListener = (event: LiveStreamEvent) => void;
+
+type PendingApproval = {
+  request: WriteApprovalRequest;
+  resolve: (approved: boolean) => void;
+};
 
 type LiveStream = {
   taskId: string;
@@ -51,6 +72,8 @@ type LiveStream = {
   status: LiveStreamStatus;
   error: string | null;
   trace: AgentTrace;
+  /** A write is blocked on the user's answer; null when nothing is pending. */
+  pendingApproval: PendingApproval | null;
   createdAt: number;
   finishedAt: number | null;
   subscribers: Set<LiveStreamListener>;
@@ -93,6 +116,8 @@ export function beginLiveStream(taskId: string, progress: string | null = null):
   const streams = registry();
   const existing = streams.get(taskId);
   if (existing) {
+    // A retry must not keep an earlier attempt's pending approval alive.
+    settlePendingApproval(existing, false);
     // Reuse the entry so watchers stay attached across a retry — a requeued
     // task must not append its new answer to the failed attempt's text.
     existing.text = "";
@@ -100,6 +125,7 @@ export function beginLiveStream(taskId: string, progress: string | null = null):
     existing.status = "running";
     existing.error = null;
     existing.trace = emptyTrace();
+    existing.pendingApproval = null;
     existing.createdAt = Date.now();
     existing.finishedAt = null;
     emit(existing, { type: "reset" });
@@ -111,6 +137,7 @@ export function beginLiveStream(taskId: string, progress: string | null = null):
       status: "running",
       error: null,
       trace: emptyTrace(),
+      pendingApproval: null,
       createdAt: Date.now(),
       finishedAt: null,
       subscribers: new Set(),
@@ -164,6 +191,76 @@ export function setLiveStreamProgress(taskId: string, progress: string | null): 
 }
 
 /**
+ * Blocks a write until the user approves or denies it. The returned promise is
+ * the agent loop's gate for the first write of a turn; `resolveLiveWriteApproval`
+ * (called by the approval API route) settles it. An abort resolves it `false`
+ * so a Stop or the task deadline can never leave the loop hanging.
+ */
+export function requestLiveWriteApproval(
+  taskId: string,
+  request: WriteApprovalRequest,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const streams = registry();
+  let stream = streams.get(taskId);
+  if (!stream) {
+    // A trimmed buffer must never turn a pending write into an implicit yes.
+    beginLiveStream(taskId);
+    stream = streams.get(taskId);
+  }
+  if (!stream || stream.status !== "running") return Promise.resolve(false);
+  const activeStream: LiveStream = stream;
+
+  // A stale request is settled "no" rather than lingering forever.
+  settlePendingApproval(activeStream, false);
+  setLiveStreamProgress(taskId, "等待你确认是否允许写入 wiki…");
+
+  return new Promise<boolean>((resolve) => {
+    let done = false;
+    const finish = (approved: boolean): void => {
+      if (done) return;
+      done = true;
+      signal?.removeEventListener("abort", onAbort);
+      resolve(approved);
+    };
+    const onAbort = (): void => {
+      if (done) return;
+      if (activeStream.pendingApproval?.request.id === request.id) {
+        activeStream.pendingApproval = null;
+        emit(activeStream, { type: "approval_resolved", id: request.id, approved: false });
+      }
+      finish(false);
+    };
+
+    if (signal?.aborted) {
+      finish(false);
+      return;
+    }
+    signal?.addEventListener("abort", onAbort, { once: true });
+    activeStream.pendingApproval = { request, resolve: finish };
+    emit(activeStream, { type: "approval_request", request });
+  });
+}
+
+/**
+ * Answers a pending write request. Returns false when no request is waiting, so
+ * the route can report a stale/late click instead of silently doing nothing.
+ */
+export function resolveLiveWriteApproval(taskId: string, approved: boolean): boolean {
+  const stream = registry().get(taskId);
+  const pending = stream?.pendingApproval;
+  if (!stream || !pending) return false;
+  stream.pendingApproval = null;
+  emit(stream, { type: "approval_resolved", id: pending.request.id, approved });
+  setLiveStreamProgress(
+    taskId,
+    approved ? "已允许写入，正在更新 wiki…" : "已拒绝写入，继续生成回答…",
+  );
+  pending.resolve(approved);
+  return true;
+}
+
+/**
  * Marks the buffer terminal. Subscribers stay attached on purpose: a task that
  * fails and is requeued emits `reset` on its next attempt, and a viewer that is
  * already watching should follow it there rather than reconnect.
@@ -175,11 +272,20 @@ export function finishLiveStream(
 ): void {
   const stream = registry().get(taskId);
   if (!stream || stream.status !== "running") return;
+  settlePendingApproval(stream, false);
   stream.status = status;
   stream.error = error;
   stream.finishedAt = Date.now();
   emit(stream, { type: "end", status, error });
   prune(registry());
+}
+
+function settlePendingApproval(stream: LiveStream, approved: boolean): void {
+  const pending = stream.pendingApproval;
+  if (!pending) return;
+  stream.pendingApproval = null;
+  emit(stream, { type: "approval_resolved", id: pending.request.id, approved });
+  pending.resolve(approved);
 }
 
 /**
@@ -215,6 +321,7 @@ export function subscribeLiveStream(taskId: string, listener: LiveStreamListener
       status: "running",
       error: null,
       trace: emptyTrace(),
+      pendingApproval: null,
       createdAt: Date.now(),
       finishedAt: null,
       subscribers: new Set(),
@@ -229,7 +336,8 @@ export function subscribeLiveStream(taskId: string, listener: LiveStreamListener
       current.status === "running" &&
       current.text.length === 0 &&
       current.trace.thinking.length === 0 &&
-      current.trace.tools.length === 0
+      current.trace.tools.length === 0 &&
+      current.pendingApproval === null
     ) {
       // Waiting buffer nobody is waiting on any more.
       streams.delete(taskId);
@@ -253,6 +361,7 @@ function snapshot(stream: LiveStream): LiveStreamSnapshot {
       tools: stream.trace.tools.map((tool) => ({ ...tool })),
       ...(stream.trace.round !== undefined ? { round: stream.trace.round } : {}),
     },
+    approval: stream.pendingApproval?.request ?? null,
     finished: stream.status !== "running",
   };
 }

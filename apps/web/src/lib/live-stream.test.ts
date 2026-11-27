@@ -6,11 +6,14 @@ import {
   beginLiveStream,
   finishLiveStream,
   readLiveStream,
+  requestLiveWriteApproval,
   resetLiveStreams,
+  resolveLiveWriteApproval,
   setLiveStreamProgress,
   subscribeLiveStream,
   upsertLiveTool,
   type LiveStreamEvent,
+  type WriteApprovalRequest,
 } from "./live-stream";
 
 /**
@@ -156,5 +159,58 @@ describe("live stream buffer", () => {
   it("ignores text for a task that never opened a buffer", () => {
     appendLiveText("unknown", "nothing to attach to");
     expect(readLiveStream("unknown")).toBeNull();
+  });
+
+  it("blocks a write until the user answers and records it in the snapshot", async () => {
+    beginLiveStream("a1");
+    const events: LiveStreamEvent[] = [];
+    const unsubscribe = subscribeLiveStream("a1", (event) => events.push(event));
+    const request: WriteApprovalRequest = {
+      id: "call_1",
+      toolName: "wiki_update_page",
+      summary: "更新 wiki 页面 [[foo]]",
+      arguments: '{"slug":"foo","content":"bar"}',
+    };
+
+    const decision = requestLiveWriteApproval("a1", request);
+    expect(readLiveStream("a1")?.approval).toEqual(request);
+    expect(events).toContainEqual({ type: "approval_request", request });
+
+    expect(resolveLiveWriteApproval("a1", true)).toBe(true);
+    await expect(decision).resolves.toBe(true);
+    expect(readLiveStream("a1")?.approval).toBeNull();
+    expect(events).toContainEqual({ type: "approval_resolved", id: "call_1", approved: true });
+
+    // A second answer for the same request is stale, not a second approval.
+    expect(resolveLiveWriteApproval("a1", true)).toBe(false);
+    unsubscribe();
+  });
+
+  it("resolves a pending write as denied when the task is aborted", async () => {
+    beginLiveStream("a2");
+    const controller = new AbortController();
+    const decision = requestLiveWriteApproval(
+      "a2",
+      { id: "call_2", toolName: "wiki_create_page", summary: "create", arguments: "{}" },
+      controller.signal,
+    );
+
+    controller.abort();
+    await expect(decision).resolves.toBe(false);
+    expect(readLiveStream("a2")?.approval).toBeNull();
+  });
+
+  it("drops a pending write when the task retries", async () => {
+    beginLiveStream("a3");
+    const decision = requestLiveWriteApproval("a3", {
+      id: "call_3",
+      toolName: "wiki_create_page",
+      summary: "create",
+      arguments: "{}",
+    });
+
+    beginLiveStream("a3", "正在重试…");
+    await expect(decision).resolves.toBe(false);
+    expect(readLiveStream("a3")?.approval).toBeNull();
   });
 });

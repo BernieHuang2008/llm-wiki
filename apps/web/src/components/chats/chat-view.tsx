@@ -13,9 +13,11 @@ import {
   fetchTask,
   findActiveChatTask,
   isActive,
+  respondToWriteApproval,
   watchTaskLive,
   type AgentTrace,
   type LiveTaskWatch,
+  type WriteApprovalRequest,
 } from "@/lib/task-client";
 import { cn } from "@/lib/utils";
 
@@ -61,6 +63,8 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
   const [streamText, setStreamText] = useState<string | null>(null);
   /** Reasoning and tool calls for the turn currently streaming. */
   const [liveTrace, setLiveTrace] = useState<AgentTrace | null>(null);
+  /** First write of this turn is blocked until the user answers this. */
+  const [pendingApproval, setPendingApproval] = useState<WriteApprovalRequest | null>(null);
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [statusNotice, setStatusNotice] = useState<string | null>(null);
 
@@ -145,12 +149,14 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
         pendingTextRef.current = "";
         setStreamText(snapshot.text.length > 0 ? snapshot.text : null);
         if (snapshot.trace) setLiveTrace(snapshot.trace);
+        setPendingApproval(snapshot.approval ?? null);
         setProgress(snapshot.progress);
       },
       onReset: () => {
         pendingTextRef.current = "";
         setStreamText(null);
         setLiveTrace(null);
+        setPendingApproval(null);
       },
       onDelta: (text) => {
         pendingTextRef.current += text;
@@ -182,11 +188,14 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
           };
         });
       },
+      onApprovalRequest: (request) => setPendingApproval(request),
+      onApprovalResolved: () => setPendingApproval(null),
       onProgress: (next) => setProgress(next),
       onRetrying: (error) => {
         pendingTextRef.current = "";
         setStreamText(null);
         setLiveTrace(null);
+        setPendingApproval(null);
         setProgress(error ? `上一次尝试失败，正在重试：${error}` : "上一次尝试失败，正在重试…");
       },
     });
@@ -233,6 +242,7 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
       setBusy(true);
       setCurrentTaskId(active.id);
       setLiveTrace(null);
+      setPendingApproval(null);
       setStatusNotice(null);
       setProgress(active.progress ?? "已提交，等待执行…");
       followRef.current = true;
@@ -248,6 +258,7 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
           setProgress(null);
           setStreamText(null);
           setLiveTrace(null);
+          setPendingApproval(null);
           setCurrentTaskId(null);
         }
       }
@@ -268,6 +279,7 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
     setSendError(null);
     setStatusNotice(null);
     setLiveTrace(null);
+    setPendingApproval(null);
     setCurrentTaskId(null);
     setProgress("已提交，等待执行…");
     const optimisticUser: ChatMessage = {
@@ -329,6 +341,7 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
       setProgress(null);
       setStreamText(null);
       setLiveTrace(null);
+      setPendingApproval(null);
       setCurrentTaskId(null);
     }
   }
@@ -341,6 +354,20 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
       setStatusNotice("正在停止生成…");
     } catch (err) {
       setStatusNotice(null);
+      setSendError((err as Error).message);
+    }
+  }
+
+  async function onApproval(approved: boolean) {
+    if (!currentTaskId) return;
+    setSendError(null);
+    try {
+      await respondToWriteApproval(currentTaskId, approved);
+      // The stream also sends approval_resolved; clearing here avoids a double
+      // click on the same prompt in the meantime.
+      setPendingApproval(null);
+      setProgress(approved ? "已允许写入，继续执行…" : "已拒绝写入，继续生成…");
+    } catch (err) {
       setSendError((err as Error).message);
     }
   }
@@ -586,6 +613,33 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
       {ingestChatError ? (
         <div className="border-b border-destructive/30 bg-destructive/10 px-6 py-2 text-sm text-destructive">
           对话Ingest失败：{ingestChatError}
+        </div>
+      ) : null}
+
+      {pendingApproval ? (
+        <div className="border-b border-amber-500/40 bg-amber-500/10 px-6 py-3 text-sm">
+          <p className="font-medium text-amber-900 dark:text-amber-100">
+            智能体想写入 wiki：{pendingApproval.summary}
+          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            这是本次提问的第一次写入。批准后，本次提问内的后续写入将不再询问。
+          </p>
+          <details className="mt-1.5 text-xs text-muted-foreground">
+            <summary className="cursor-pointer select-none">
+              查看工具参数（{pendingApproval.toolName}）
+            </summary>
+            <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-background/60 p-2 font-mono text-[10px]">
+              {prettyJson(pendingApproval.arguments)}
+            </pre>
+          </details>
+          <div className="mt-2 flex items-center gap-2">
+            <Button size="sm" onClick={() => void onApproval(true)}>
+              允许写入
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => void onApproval(false)}>
+              拒绝
+            </Button>
+          </div>
         </div>
       ) : null}
 
