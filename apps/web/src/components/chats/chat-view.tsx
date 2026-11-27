@@ -386,6 +386,28 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
     }
   }
 
+  async function onDeleteMessage(index: number) {
+    if (busy) return;
+    if (!chat.messages[index]) return;
+    if (!confirm("删除这条消息？这会直接改写对话文件，无法撤销。")) return;
+    setSendError(null);
+    try {
+      const res = await fetch(`/api/chats/${chatId}/messages/${index}`, { method: "DELETE" });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        chat?: ChatPayload;
+      };
+      if (!res.ok || !json.ok || !json.chat) {
+        throw new Error(json.error ?? `HTTP ${res.status}`);
+      }
+      setChat(json.chat);
+      router.refresh();
+    } catch (err) {
+      setSendError((err as Error).message);
+    }
+  }
+
   async function onIngestChat() {
     if (chat.messages.length === 0) return;
     if (
@@ -587,9 +609,17 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
                   <div className="flex justify-end">
                     <div className="max-w-[80%] rounded-2xl rounded-tr-md bg-primary/10 px-4 py-3 text-sm text-foreground">
                       <MarkdownView content={m.content} knownSlugs={knownSlugs} />
-                      <p className="mt-1 text-right text-[10px] text-muted-foreground/70">
-                        {m.time}
-                      </p>
+                      <div className="mt-1 flex items-center justify-end gap-2 text-[10px] text-muted-foreground/70">
+                        <span>{m.time}</span>
+                        <button
+                          type="button"
+                          onClick={() => void onDeleteMessage(i)}
+                          disabled={busy}
+                          className="hover:text-destructive disabled:opacity-40"
+                        >
+                          删除
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -600,6 +630,14 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
                     </article>
                     <div className="mt-1.5 flex items-center gap-3 text-[10px] text-muted-foreground/80">
                       <span>{m.time}</span>
+                      <button
+                        type="button"
+                        onClick={() => void onDeleteMessage(i)}
+                        disabled={busy}
+                        className="hover:text-destructive disabled:opacity-40"
+                      >
+                        删除
+                      </button>
                       <button
                         type="button"
                         onClick={() => setPromoteFor(m)}

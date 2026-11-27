@@ -24,6 +24,7 @@ import { insertUsage } from "./db-usage";
 import { buildChatAgentSystemPrompt } from "./prompts/chat";
 import type { ChatRow } from "./types";
 import { readIndex, readSchema, WIKI_PATHS } from "./wiki";
+import { withWriteLock } from "./write-lock";
 
 export const DEFAULT_CHAT_FOLDERS = ["inbox", "pinned", "archive"] as const;
 const TRASH_DIR = "trash/chats";
@@ -200,6 +201,17 @@ function parseMessages(body: string): ChatMessage[] {
   return messages;
 }
 
+function serializeMessages(messages: ChatMessage[]): string {
+  if (messages.length === 0) return "";
+  const body = messages
+    .map((message) => {
+      const traceBlock = message.trace ? encodeTrace(message.trace) : "";
+      return `## ${message.role} [${message.time}]\n${traceBlock}${message.content}`;
+    })
+    .join("\n\n");
+  return `${body}\n`;
+}
+
 // ---- append message ------------------------------------------------------
 
 export async function appendMessage(
@@ -210,42 +222,92 @@ export async function appendMessage(
   content: string,
   trace?: ChatAgentTrace,
 ): Promise<{ row: ChatRow; message: ChatMessage }> {
-  const row = getChat(db, chatId);
-  if (!row) throw chatNotFound(chatId);
-  const filePath = chatPath(wikiPath, row.folder, row.filename);
-  const raw = await readFile(filePath, "utf8");
-  const parsed = matter(raw);
+  return withWriteLock(wikiPath, async () => {
+    const row = getChat(db, chatId);
+    if (!row) throw chatNotFound(chatId);
+    const filePath = chatPath(wikiPath, row.folder, row.filename);
+    const raw = await readFile(filePath, "utf8");
+    const parsed = matter(raw);
 
-  const message: ChatMessage = {
-    role,
-    time: nowHms(),
-    content: content.trim(),
-    ...(trace ? { trace } : {}),
-  };
+    const message: ChatMessage = {
+      role,
+      time: nowHms(),
+      content: content.trim(),
+      ...(trace ? { trace } : {}),
+    };
 
-  // Rebuild body: keep prior content, append a separator + new message block.
-  const trimmedPrior = parsed.content.replace(/\s+$/u, "");
-  const sep = trimmedPrior.length > 0 ? "\n\n" : "";
-  const traceBlock = trace ? encodeTrace(trace) : "";
-  const block = `## ${message.role} [${message.time}]\n${traceBlock}${message.content}\n`;
-  const newBody = `${trimmedPrior}${sep}${block}`;
+    // Rebuild body: keep prior content, append a separator + new message block.
+    const trimmedPrior = parsed.content.replace(/\s+$/u, "");
+    const sep = trimmedPrior.length > 0 ? "\n\n" : "";
+    const traceBlock = trace ? encodeTrace(trace) : "";
+    const block = `## ${message.role} [${message.time}]\n${traceBlock}${message.content}\n`;
+    const newBody = `${trimmedPrior}${sep}${block}`;
 
-  const updatedIso = new Date().toISOString();
-  const newFrontmatter = {
-    ...(parsed.data as Record<string, unknown>),
-    updated: updatedIso,
-    message_count: row.message_count + 1,
-  };
-  const out = matter.stringify(newBody, newFrontmatter);
-  await writeFile(filePath, out, "utf8");
+    const updatedIso = new Date().toISOString();
+    const newFrontmatter = {
+      ...(parsed.data as Record<string, unknown>),
+      updated: updatedIso,
+      message_count: row.message_count + 1,
+    };
+    const out = matter.stringify(newBody, newFrontmatter);
+    await writeFile(filePath, out, "utf8");
 
-  const nextRow: ChatRow = {
-    ...row,
-    updated_at: updatedIso,
-    message_count: row.message_count + 1,
-  };
-  updateChat(db, nextRow);
-  return { row: nextRow, message };
+    const nextRow: ChatRow = {
+      ...row,
+      updated_at: updatedIso,
+      message_count: row.message_count + 1,
+    };
+    updateChat(db, nextRow);
+    return { row: nextRow, message };
+  });
+}
+
+/**
+ * Removes one message by its position in the thread, then rewrites the chat
+ * file from the remaining messages. Index-based because the markdown format
+ * has no per-message id; the UI always passes the index it rendered.
+ */
+export async function deleteChatMessage(
+  wikiPath: string,
+  db: Db,
+  chatId: string,
+  index: number,
+): Promise<{ row: ChatRow; messages: ChatMessage[]; deleted: ChatMessage }> {
+  return withWriteLock(wikiPath, async () => {
+    const row = getChat(db, chatId);
+    if (!row) throw chatNotFound(chatId);
+    const filePath = chatPath(wikiPath, row.folder, row.filename);
+    const raw = await readFile(filePath, "utf8");
+    const parsed = matter(raw);
+    const messages = parseMessages(parsed.content);
+
+    if (!Number.isInteger(index) || index < 0 || index >= messages.length) {
+      throw new Error(`deleteChatMessage: message index out of range: ${index}`);
+    }
+
+    const deleted = messages[index]!;
+    const remaining = messages.filter((_, i) => i !== index);
+    const updatedIso = new Date().toISOString();
+    const newFrontmatter = {
+      ...(parsed.data as Record<string, unknown>),
+      updated: updatedIso,
+      message_count: remaining.length,
+    };
+
+    await writeFile(
+      filePath,
+      matter.stringify(serializeMessages(remaining), newFrontmatter),
+      "utf8",
+    );
+
+    const nextRow: ChatRow = {
+      ...row,
+      updated_at: updatedIso,
+      message_count: remaining.length,
+    };
+    updateChat(db, nextRow);
+    return { row: nextRow, messages: remaining, deleted };
+  });
 }
 
 // ---- rename / move / pin / delete ----------------------------------------

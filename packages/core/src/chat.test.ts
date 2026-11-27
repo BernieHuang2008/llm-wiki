@@ -9,6 +9,7 @@ import {
   appendMessage,
   createChat,
   deleteChat,
+  deleteChatMessage,
   listChatFolders,
   listChats,
   moveChat,
@@ -79,6 +80,52 @@ describe("appendMessage", () => {
   });
 });
 
+describe("deleteChatMessage", () => {
+  it("removes one message from the file + DB and updates the count", async () => {
+    const row = await createChat(wikiPath, db, { model: "any/model", title: "T" });
+    await appendMessage(wikiPath, db, row.id, "user", "keep first");
+    await appendMessage(wikiPath, db, row.id, "assistant", "remove me");
+    await appendMessage(wikiPath, db, row.id, "user", "keep last");
+
+    const result = await deleteChatMessage(wikiPath, db, row.id, 1);
+    expect(result.deleted.content).toBe("remove me");
+    expect(result.row.message_count).toBe(2);
+
+    const chat = await readChat(wikiPath, row.id, db);
+    expect(chat.messages.map((m) => m.content)).toEqual(["keep first", "keep last"]);
+    expect(chat.row.message_count).toBe(2);
+
+    const raw = await readFile(join(wikiPath, WIKI_PATHS.chats, "inbox", row.filename), "utf8");
+    expect(raw).toContain("message_count: 2");
+    expect(raw).not.toContain("remove me");
+  });
+
+  it("keeps the trace on messages that remain", async () => {
+    const row = await createChat(wikiPath, db, { model: "any/model", title: "Trace" });
+    await appendMessage(wikiPath, db, row.id, "assistant", "with trace", {
+      thinking: "thought process",
+      tools: [],
+    });
+    await appendMessage(wikiPath, db, row.id, "user", "delete me");
+
+    await deleteChatMessage(wikiPath, db, row.id, 1);
+
+    const chat = await readChat(wikiPath, row.id, db);
+    expect(chat.messages).toHaveLength(1);
+    expect(chat.messages[0]?.trace?.thinking).toBe("thought process");
+  });
+
+  it("rejects an out-of-range index without touching the file", async () => {
+    const row = await createChat(wikiPath, db, { model: "any/model", title: "Bounds" });
+    await appendMessage(wikiPath, db, row.id, "user", "only message");
+
+    await expect(deleteChatMessage(wikiPath, db, row.id, 5)).rejects.toThrow(/out of range/);
+
+    const chat = await readChat(wikiPath, row.id, db);
+    expect(chat.messages.map((m) => m.content)).toEqual(["only message"]);
+  });
+});
+
 describe("renameChat + moveChat + pinChat", () => {
   it("rename updates frontmatter title + DB row but keeps filename", async () => {
     const row = await createChat(wikiPath, db, { model: "any/model", title: "Old" });
@@ -94,9 +141,7 @@ describe("renameChat + moveChat + pinChat", () => {
     const row = await createChat(wikiPath, db, { model: "any/model", title: "Mover" });
     const moved = await moveChat(wikiPath, db, row.id, "archive");
     expect(moved.folder).toBe("archive");
-    await expect(
-      access(join(wikiPath, WIKI_PATHS.chats, "inbox", row.filename)),
-    ).rejects.toThrow();
+    await expect(access(join(wikiPath, WIKI_PATHS.chats, "inbox", row.filename))).rejects.toThrow();
     const newPath = join(wikiPath, WIKI_PATHS.chats, "archive", row.filename);
     const raw = await readFile(newPath, "utf8");
     expect(raw).toContain("folder: archive");
@@ -124,9 +169,7 @@ describe("deleteChat", () => {
     const row = await createChat(wikiPath, db, { model: "any/model", title: "Doomed" });
     const r = await deleteChat(wikiPath, db, row.id);
     expect(r.trashedPath.replace(/\\/g, "/")).toContain(".llm-wiki/trash/chats/");
-    await expect(
-      access(join(wikiPath, WIKI_PATHS.chats, "inbox", row.filename)),
-    ).rejects.toThrow();
+    await expect(access(join(wikiPath, WIKI_PATHS.chats, "inbox", row.filename))).rejects.toThrow();
     expect(listChats(db)).toEqual([]);
   });
 });
