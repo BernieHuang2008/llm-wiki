@@ -8,6 +8,7 @@ import {
   addRecentWiki,
   clampIngestConcurrency,
   DEFAULT_GLOBAL_CONFIG,
+  DEFAULT_MAX_ROUNDS,
   DEFAULT_WIKI_SETTINGS,
   globalConfigPath,
   loadGlobalConfig,
@@ -215,9 +216,29 @@ describe("wiki settings", () => {
       "utf8",
     );
     const s = await loadWikiSettings(wikiPath);
-    expect(s.defaultModels.query).toEqual({ provider: "ollama", model: "mistral" });
+    expect(s.defaultModels.query).toEqual({
+      provider: "ollama",
+      model: "mistral",
+      maxRounds: DEFAULT_MAX_ROUNDS,
+    });
     expect(s.defaultModels.ingest).toEqual(DEFAULT_WIKI_SETTINGS.defaultModels.ingest);
     expect(s.showCostEstimates).toBe(DEFAULT_WIKI_SETTINGS.showCostEstimates);
+  });
+
+  it("preserves -1 as unlimited rounds and clamps other invalid values", async () => {
+    await writeFile(
+      wikiSettingsPath(wikiPath),
+      JSON.stringify({
+        defaultModels: {
+          chat: { provider: "openrouter", model: "m", maxRounds: -1 },
+          query: { provider: "openrouter", model: "m", maxRounds: 0 },
+        },
+      }),
+      "utf8",
+    );
+    const s = await loadWikiSettings(wikiPath);
+    expect(s.defaultModels.chat.maxRounds).toBe(-1);
+    expect(s.defaultModels.query.maxRounds).toBe(1);
   });
 
   it("migrates legacy plain-string model slot to { provider: 'openrouter', model } shape", async () => {
@@ -227,7 +248,11 @@ describe("wiki settings", () => {
       "utf8",
     );
     const s = await loadWikiSettings(wikiPath);
-    expect(s.defaultModels.ingest).toEqual({ provider: "openrouter", model: "openai/gpt-4o-mini" });
+    expect(s.defaultModels.ingest).toEqual({
+      provider: "openrouter",
+      model: "openai/gpt-4o-mini",
+      maxRounds: DEFAULT_MAX_ROUNDS,
+    });
   });
 
   it("writes to .llm-wiki/settings.json inside the wiki folder", async () => {

@@ -22,6 +22,7 @@ export const runtime = "nodejs";
  *                                                     authoritative replay
  *   reset     {}                                    — a retry restarted the answer
  *   delta     { text }                              — newly generated chunk
+ *   round     { round }                             — current agent round
  *   thinking  { text }                              — reasoning-token delta
  *   tool_call { tool }                              — a tool started
  *   tool_result { tool }                            — a tool finished/failed
@@ -154,6 +155,10 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         }
         if (event.type === "progress") {
           send("progress", { progress: event.progress });
+          return;
+        }
+        if (event.type === "round") {
+          send("round", { round: event.round });
           return;
         }
         if (event.type === "thinking") {

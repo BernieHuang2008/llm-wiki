@@ -172,8 +172,8 @@ const SLOT_LABEL: Record<Slot, string> = {
 };
 
 // ─── State shape ───────────────────────────────────────────────────────────────
-// Mirrors the server's ModelSlotConfig: each slot stores both provider + model.
-type SlotConfig = { provider: Provider; model: string };
+// Mirrors the server's ModelSlotConfig: provider + model + agentic round budget.
+type SlotConfig = { provider: Provider; model: string; maxRounds: number };
 type Models = Record<Slot, SlotConfig>;
 
 // Shared <select> className to keep all dropdowns visually identical.
@@ -205,7 +205,17 @@ export function ModelsTab() {
         const res = await fetch("/api/settings", { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as { settings: { defaultModels: Models } };
-        const dm = data.settings.defaultModels;
+        // Older settings files predate maxRounds; fall back to the default so
+        // the numeric input always has a value.
+        const dm = Object.fromEntries(
+          SLOTS.map((slot) => [
+            slot,
+            {
+              ...data.settings.defaultModels[slot],
+              maxRounds: data.settings.defaultModels[slot]?.maxRounds ?? 8,
+            },
+          ]),
+        ) as Models;
         setModels(dm);
         setOriginal(dm);
 
@@ -259,6 +269,18 @@ export function ModelsTab() {
     updateSlot(slot, { model: value });
   }
 
+  function onRoundsChange(slot: Slot, raw: string) {
+    // `-1` is the explicit "unlimited" sentinel; blank or garbage falls back to
+    // the default budget instead of saving an unusable 0.
+    const parsed = raw.trim() === "" ? 8 : Number(raw);
+    const value = !Number.isFinite(parsed)
+      ? 8
+      : parsed === -1
+        ? -1
+        : Math.max(1, Math.trunc(parsed));
+    updateSlot(slot, { maxRounds: value });
+  }
+
   async function onSave() {
     if (!models) return;
     setBusy(true);
@@ -281,9 +303,16 @@ export function ModelsTab() {
   }
 
   const dirty = useMemo(
-    () => !!models && !!original && SLOTS.some((s) => {
-      return models[s].provider !== original[s].provider || models[s].model !== original[s].model;
-    }),
+    () =>
+      !!models &&
+      !!original &&
+      SLOTS.some((s) => {
+        return (
+          models[s].provider !== original[s].provider ||
+          models[s].model !== original[s].model ||
+          models[s].maxRounds !== original[s].maxRounds
+        );
+      }),
     [models, original],
   );
 
@@ -353,14 +382,13 @@ export function ModelsTab() {
           </p>
           <ul className="ml-4 mt-1 list-disc space-y-0.5 text-amber-900/80 dark:text-amber-200/80">
             <li>
-              <strong>速率限制。</strong>新账号约为每分钟 20 次请求、每天 50 次。
-              为 OpenRouter 充值 ${"≥"}10 后每日上限会提升到约 1000 次——即使你用的是免费模型，
+              <strong>速率限制。</strong>新账号约为每分钟 20 次请求、每天 50 次。 为 OpenRouter 充值
+              ${"≥"}10 后每日上限会提升到约 1000 次——即使你用的是免费模型，
               这笔充值也能解锁更高的吞吐。
             </li>
             <li>
-              <strong>数据留存。</strong>部分免费线路会经过保留提示词用于训练的提供方。
-              不要通过 <code>:free</code> 线路传递任何机密内容。付费的 Anthropic / OpenAI
-              线路不会共享数据。
+              <strong>数据留存。</strong>部分免费线路会经过保留提示词用于训练的提供方。 不要通过{" "}
+              <code>:free</code> 线路传递任何机密内容。付费的 Anthropic / OpenAI 线路不会共享数据。
             </li>
             <li>
               <strong>JSON 可靠性。</strong>wiki 的Ingest／查询／体检流程都要求严格的 JSON。
@@ -390,8 +418,8 @@ export function ModelsTab() {
             {ollamaSlots.length > 0 ? `（${ollamaSlots.join("、")}）` : ""}
           </p>
           <p className="mt-1 text-amber-900/80 dark:text-amber-200/80">
-            Ollama 在你的机器上本地运行——必须先安装并启动，这些操作才能正常工作，
-            否则会以通用的 <em>Connection error</em> 失败。安装步骤、模型推荐以及各模型
+            Ollama 在你的机器上本地运行——必须先安装并启动，这些操作才能正常工作， 否则会以通用的{" "}
+            <em>Connection error</em> 失败。安装步骤、模型推荐以及各模型
             所需的硬件配置请见配置指南。
           </p>
           <Link
@@ -492,8 +520,32 @@ export function ModelsTab() {
                       className="font-mono text-[13px] sm:flex-1"
                     />
                   ) : (
-                    <span className="font-mono text-xs text-muted-foreground">{models[slot].model}</span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {models[slot].model}
+                    </span>
                   )}
+                </div>
+
+                {/* Agentic round budget. -1 = unlimited; the stop button in
+                    chat is the escape hatch for a model that loops. */}
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <label className="text-xs text-muted-foreground" htmlFor={`rounds-${slot}`}>
+                    最大轮数
+                  </label>
+                  <Input
+                    id={`rounds-${slot}`}
+                    type="number"
+                    min={-1}
+                    step={1}
+                    value={models[slot].maxRounds}
+                    onChange={(e) => onRoundsChange(slot, e.target.value)}
+                    className="h-8 w-24 font-mono text-[13px]"
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    {models[slot].maxRounds === -1
+                      ? "无限（直到给出最终回答或你点“停止”）"
+                      : `最多 ${models[slot].maxRounds} 轮`}
+                  </span>
                 </div>
 
                 {/* Ollama hint */}
@@ -520,6 +572,12 @@ export function ModelsTab() {
       )}
 
       <div className="rounded-md border border-border/70 bg-muted/30 p-3 text-xs text-muted-foreground">
+        <p className="mb-2">
+          <strong className="text-foreground">最大轮数</strong> 控制 agentic
+          循环最多调用多少轮模型。设为 <code className="font-mono">-1</code>{" "}
+          表示无限，直到模型给出最终回答或你点“停止”。目前只有“对话”会运行多轮循环，
+          其他操作保留该值以备后续启用。
+        </p>
         <strong className="text-foreground">模型标识会过期。</strong>{" "}
         提供方会定期下线旧版本。如果某项操作报错{" "}
         <code className="font-mono">model not available on OpenRouter</code>

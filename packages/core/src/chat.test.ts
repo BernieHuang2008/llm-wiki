@@ -219,18 +219,21 @@ describe("sendChatMessage", () => {
       title: "Talk",
     });
 
-    const create = vi.fn(async () => ({
-      id: "stub",
-      model: "stub/sonnet",
-      choices: [
-        {
-          index: 0,
-          message: { role: "assistant", content: "Here's an answer with [[some-page]]." },
-          finish_reason: "stop",
-        },
-      ],
-      usage: { prompt_tokens: 800, completion_tokens: 120 },
-    }));
+    // The chat turn runs through the agent loop, which consumes the provider's
+    // streaming API. A non-streaming completion object is no longer enough.
+    const create = vi.fn(async () =>
+      (async function* () {
+        yield {
+          model: "stub/sonnet",
+          choices: [{ delta: { content: "Here's an answer with [[some-page]]." } }],
+        };
+        yield {
+          model: "stub/sonnet",
+          choices: [{ delta: {} }],
+          usage: { prompt_tokens: 800, completion_tokens: 120 },
+        };
+      })(),
+    );
     const client = { chat: { completions: { create } } } as unknown as LlmClient;
 
     const r = await sendChatMessage({

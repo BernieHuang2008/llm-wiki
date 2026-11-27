@@ -159,6 +159,14 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
         setLiveTrace((prev) => ({
           thinking: `${prev?.thinking ?? ""}${text}`,
           tools: prev?.tools ?? [],
+          ...(prev?.round !== undefined ? { round: prev.round } : {}),
+        }));
+      },
+      onRound: (round) => {
+        setLiveTrace((prev) => ({
+          thinking: prev?.thinking ?? "",
+          tools: prev?.tools ?? [],
+          round,
         }));
       },
       onTool: (tool) => {
@@ -167,7 +175,11 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
           const index = tools.findIndex((entry) => entry.id === tool.id);
           if (index === -1) tools.push(tool);
           else tools[index] = tool;
-          return { thinking: prev?.thinking ?? "", tools };
+          return {
+            thinking: prev?.thinking ?? "",
+            tools,
+            ...(prev?.round !== undefined ? { round: prev.round } : {}),
+          };
         });
       },
       onProgress: (next) => setProgress(next),
@@ -654,6 +666,7 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
         )}
         {busy ? (
           <div className="mt-4 max-w-[92%]">
+            {liveTrace ? <AgentTraceView trace={liveTrace} live /> : null}
             {streamText ? (
               <article className="text-sm">
                 <MarkdownView content={streamText} knownSlugs={knownSlugs} />
@@ -665,6 +678,11 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
                 className="inline-block h-3.5 w-[2px] animate-pulse bg-muted-foreground/70"
               />
               <span>{progress ? progress : "正在生成回复…"}</span>
+              {liveTrace?.round ? (
+                <span className="tabular-nums text-muted-foreground/70">
+                  · 第 {liveTrace.round} 轮
+                </span>
+              ) : null}
             </p>
           </div>
         ) : null}
@@ -738,7 +756,12 @@ function AgentTraceView({ trace, live = false }: { trace: AgentTrace; live?: boo
         onClick={() => setOpen((value) => !value)}
         className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs text-muted-foreground hover:bg-muted/40"
       >
-        <span className="font-medium text-foreground/80">思考与工具调用</span>
+        <span className="font-medium text-foreground/80">
+          思考与工具调用
+          {trace.round ? (
+            <span className="ml-2 font-normal text-muted-foreground">第 {trace.round} 轮</span>
+          ) : null}
+        </span>
         <span>
           {trace.tools.length > 0 ? `${trace.tools.length} 个工具 · ` : ""}
           {open ? "收起" : "展开"}

@@ -5,17 +5,11 @@ import { useCallback, useEffect, useState } from "react";
 
 import { PageContainer, PageHeader } from "@/components/page-shell";
 import { Button } from "@/components/ui/button";
-import { fetchTask, isActive } from "@/lib/task-client";
+import { cancelTask, fetchTask, isActive } from "@/lib/task-client";
 import { cn } from "@/lib/utils";
 
 type Severity = "high" | "medium" | "low";
-type IssueType =
-  | "contradiction"
-  | "orphan"
-  | "missing-page"
-  | "broken-link"
-  | "gap"
-  | "stale";
+type IssueType = "contradiction" | "orphan" | "missing-page" | "broken-link" | "gap" | "stale";
 
 type LintIssue = {
   severity: Severity;
@@ -178,6 +172,8 @@ export function LintView({
 } = {}) {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [result, setResult] = useState<LintResult | null>(initialResult);
   const [model, setModel] = useState<string | null>(initialModel);
   const [error, setError] = useState<string | null>(null);
@@ -212,6 +208,8 @@ export function LintView({
   async function runLint() {
     setBusy(true);
     setError(null);
+    setNotice(null);
+    setCurrentTaskId(null);
     setProgress("已提交，等待执行…");
     setFixedKeys(new Map());
     setBulkFlash(null);
@@ -234,10 +232,15 @@ export function LintView({
       // settles. Closing this page no longer throws the run away — log.md gets
       // its history line either way.
       const taskId = json.task.id;
+      setCurrentTaskId(taskId);
       for (;;) {
         const task = await fetchTask(taskId);
         setProgress(task.progress ?? null);
         if (!isActive(task)) {
+          if (task.status === "canceled") {
+            setNotice("已停止生成。");
+            break;
+          }
           if (task.status !== "succeeded") {
             throw new Error(task.error ?? "体检任务失败。");
           }
@@ -255,6 +258,19 @@ export function LintView({
     } finally {
       setBusy(false);
       setProgress(null);
+      setCurrentTaskId(null);
+    }
+  }
+
+  async function onStop() {
+    if (!currentTaskId) return;
+    setNotice("正在停止…");
+    try {
+      await cancelTask(currentTaskId);
+      setNotice("正在停止生成…");
+    } catch (err) {
+      setNotice(null);
+      setError((err as Error).message);
     }
   }
 
@@ -437,18 +453,27 @@ export function LintView({
         description="先在本地快速扫描失效链接与孤岛页面，再由模型检查矛盾、缺口、过时说法与缺失页面。"
         actions={
           <>
+            {busy ? (
+              <Button variant="outline" onClick={() => void onStop()} disabled={!currentTaskId}>
+                停止
+              </Button>
+            ) : null}
             <Button onClick={runLint} disabled={busy}>
               {busy ? "体检中…" : result ? "重新体检" : "开始体检"}
             </Button>
             {busy && progress ? (
               <span className="text-caption text-muted-foreground">{progress}</span>
             ) : null}
-            {model ? (
-              <span className="text-caption text-muted-foreground">via {model}</span>
-            ) : null}
+            {model ? <span className="text-caption text-muted-foreground">via {model}</span> : null}
           </>
         }
       />
+
+      {notice ? (
+        <p className="mt-4 rounded-md bg-secondary/40 px-3 py-2 text-sm text-muted-foreground">
+          {notice}
+        </p>
+      ) : null}
 
       {error ? (
         <div className="mt-6 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -466,8 +491,8 @@ export function LintView({
           {recentRuns.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               还没有体检记录。点击 <strong>开始体检</strong> 跑第一次 —— 结果会完整保存下来，
-              之后可以随时点开复查并直接修复。同时会在{" "}
-              <code className="font-mono">log.md</code> 里追加一行摘要。
+              之后可以随时点开复查并直接修复。同时会在 <code className="font-mono">log.md</code>{" "}
+              里追加一行摘要。
             </p>
           ) : (
             <ul className="divide-y divide-border/60 text-sm">
@@ -519,8 +544,8 @@ export function LintView({
             </span>
             <span className="text-sm text-muted-foreground">
               {result.issues.length} issue{result.issues.length === 1 ? "" : "s"} across{" "}
-              {result.totalPages} page{result.totalPages === 1 ? "" : "s"} ·{" "}
-              {counts.high} high · {counts.medium} medium · {counts.low} low
+              {result.totalPages} page{result.totalPages === 1 ? "" : "s"} · {counts.high} high ·{" "}
+              {counts.medium} medium · {counts.low} low
             </span>
             {result.truncated ? (
               <span className="rounded bg-amber-500/10 px-2 py-0.5 text-xs text-amber-700 dark:text-amber-300">
@@ -770,9 +795,7 @@ export function LintView({
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">
-              No issues found. Nice.
-            </p>
+            <p className="text-sm text-muted-foreground">No issues found. Nice.</p>
           )}
 
           {result.suggestedQuestions.length > 0 ? (

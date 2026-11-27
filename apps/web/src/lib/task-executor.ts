@@ -68,6 +68,7 @@ import {
   appendLiveThinking,
   beginLiveStream,
   finishLiveStream,
+  setLiveRound,
   setLiveStreamProgress,
   upsertLiveTool,
 } from "@/lib/live-stream";
@@ -700,7 +701,10 @@ async function runChat(task: TaskRow, ctx: WikiContext, signal: AbortSignal): Pr
     signal,
     onDelta: (delta) => appendLiveText(task.id, delta),
     onEvent: (event) => {
-      if (event.type === "thinking") appendLiveThinking(task.id, event.text);
+      if (event.type === "round") {
+        setLiveRound(task.id, event.round);
+        setLiveStreamProgress(task.id, `第 ${event.round} 轮 · 正在思考…`);
+      } else if (event.type === "thinking") appendLiveThinking(task.id, event.text);
       else if (event.type === "tool_call" || event.type === "tool_result") {
         upsertLiveTool(task.id, event.tool);
         setLiveStreamProgress(

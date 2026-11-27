@@ -458,6 +458,15 @@ export async function sendChatMessage(
   if (!before) throw chatNotFound(opts.chatId);
   const model = opts.modelOverride ?? (await readChatModel(opts.wikiPath, before));
 
+  // Per-operation round budget from Settings → Models. A missing/unreadable
+  // settings file falls back to the agent's own default. `-1` = unlimited.
+  let maxSteps: number | undefined;
+  try {
+    maxSteps = (await loadWikiSettings(opts.wikiPath)).defaultModels.chat.maxRounds;
+  } catch {
+    // fallback to runChatAgent's default
+  }
+
   // 1. Persist the user's turn first so a mid-call failure doesn't lose their
   // input. Skipped when the route already recorded it.
   const userAppend = opts.skipUserAppend
@@ -483,6 +492,7 @@ export async function sendChatMessage(
       model,
       system,
       messages: chat.messages.map((m) => ({ role: m.role, content: m.content })),
+      ...(maxSteps !== undefined ? { maxSteps } : {}),
       ...(opts.signal ? { signal: opts.signal } : {}),
       onEvent: (event) => {
         if (event.type === "content" && opts.onDelta) opts.onDelta(event.text);

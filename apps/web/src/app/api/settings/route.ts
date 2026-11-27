@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import {
   clampIngestConcurrency,
+  clampMaxRounds,
   DEFAULT_WIKI_SETTINGS,
   loadWikiSettings,
   saveWikiSettings,
@@ -37,15 +38,24 @@ export async function PUT(req: Request) {
   }
   const wikiPath = resolveWikiPath();
   const current = await loadWikiSettings(wikiPath);
+  const mergeSlot = (
+    saved: ModelSlotConfig,
+    patch: Partial<ModelSlotConfig> | undefined,
+  ): ModelSlotConfig => ({
+    provider: patch?.provider ?? saved.provider,
+    model: patch?.model ?? saved.model,
+    maxRounds:
+      typeof patch?.maxRounds === "number" ? clampMaxRounds(patch.maxRounds) : saved.maxRounds,
+  });
   const next: WikiSettings = {
     version: 1,
     topic: typeof body.topic === "string" ? body.topic : current.topic,
     defaultModels: {
-      ingest: { ...current.defaultModels.ingest, ...body.defaultModels?.ingest },
-      query:  { ...current.defaultModels.query,  ...body.defaultModels?.query  },
-      chat:   { ...current.defaultModels.chat,   ...body.defaultModels?.chat   },
-      lint:   { ...current.defaultModels.lint,   ...body.defaultModels?.lint   },
-      vision: { ...current.defaultModels.vision, ...body.defaultModels?.vision },
+      ingest: mergeSlot(current.defaultModels.ingest, body.defaultModels?.ingest),
+      query: mergeSlot(current.defaultModels.query, body.defaultModels?.query),
+      chat: mergeSlot(current.defaultModels.chat, body.defaultModels?.chat),
+      lint: mergeSlot(current.defaultModels.lint, body.defaultModels?.lint),
+      vision: mergeSlot(current.defaultModels.vision, body.defaultModels?.vision),
     },
     autoLintAfterIngest:
       typeof body.autoLintAfterIngest === "boolean"

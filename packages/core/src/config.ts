@@ -69,7 +69,10 @@ function parseGlobalConfig(raw: unknown): GlobalConfig {
   if (typeof data["activeWiki"] === "string" && data["activeWiki"].length > 0) {
     out.activeWiki = data["activeWiki"];
   }
-  if (typeof data["onboardingCompletedAt"] === "string" && data["onboardingCompletedAt"].length > 0) {
+  if (
+    typeof data["onboardingCompletedAt"] === "string" &&
+    data["onboardingCompletedAt"].length > 0
+  ) {
     out.onboardingCompletedAt = data["onboardingCompletedAt"];
   }
   if (Array.isArray(data["recentWikis"])) {
@@ -199,7 +202,29 @@ const VALID_PROVIDERS: ModelProvider[] = ["openrouter", "ollama", "deepseek"];
 export type ModelSlotConfig = {
   provider: ModelProvider;
   model: string;
+  /**
+   * Maximum agentic rounds for this operation. `-1` means run until the model
+   * produces a final answer (or the user stops it). Only operations that
+   * actually loop consume this today.
+   */
+  maxRounds: number;
 };
+
+/** Default round budget for an agentic operation. */
+export const DEFAULT_MAX_ROUNDS = 8;
+/** Sentinel for "no limit" — keep looping until a final answer or abort. */
+export const UNLIMITED_ROUNDS = -1;
+
+/**
+ * Normalizes a max-rounds value from the UI or a hand-edited settings file.
+ * `-1` is preserved as the unlimited sentinel; anything below 1 otherwise is
+ * clamped to 1 so a typo cannot silently disable the operation.
+ */
+export function clampMaxRounds(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_MAX_ROUNDS;
+  if (value === UNLIMITED_ROUNDS) return UNLIMITED_ROUNDS;
+  return Math.max(1, Math.floor(value));
+}
 
 export type WikiSettings = {
   version: 1;
@@ -240,9 +265,13 @@ export function clampIngestConcurrency(value: number): number {
   return Math.min(MAX_INGEST_CONCURRENCY, Math.max(MIN_INGEST_CONCURRENCY, Math.floor(value)));
 }
 
-/** Helper to build a slot config with an explicit provider. */
-function slotConfig(model: string, provider: ModelProvider = "openrouter"): ModelSlotConfig {
-  return { provider, model };
+/** Helper to build a slot config with an explicit provider + round budget. */
+function slotConfig(
+  model: string,
+  provider: ModelProvider = "openrouter",
+  maxRounds: number = DEFAULT_MAX_ROUNDS,
+): ModelSlotConfig {
+  return { provider, model, maxRounds };
 }
 
 export const DEFAULT_WIKI_SETTINGS: WikiSettings = {
@@ -298,19 +327,29 @@ function parseWikiSettings(raw: unknown): WikiSettings {
       const raw = m[slot];
       if (typeof raw === "string" && raw.length > 0) {
         // Backward-compat: old format stored a plain model string.
-        // Migrate to the new { provider, model } shape, defaulting to openrouter.
-        out.defaultModels[slot] = { provider: "openrouter", model: raw };
+        // Migrate to the new { provider, model, maxRounds } shape, defaulting
+        // to openrouter + the default round budget.
+        out.defaultModels[slot] = {
+          provider: "openrouter",
+          model: raw,
+          maxRounds: DEFAULT_MAX_ROUNDS,
+        };
       } else if (typeof raw === "object" && raw !== null) {
         const entry = raw as Record<string, unknown>;
-        const model = typeof entry["model"] === "string" && entry["model"].length > 0
-          ? entry["model"]
-          : out.defaultModels[slot].model;
+        const model =
+          typeof entry["model"] === "string" && entry["model"].length > 0
+            ? entry["model"]
+            : out.defaultModels[slot].model;
         const rawProvider = entry["provider"];
         const provider: ModelProvider =
           typeof rawProvider === "string" && VALID_PROVIDERS.includes(rawProvider as ModelProvider)
             ? (rawProvider as ModelProvider)
             : "openrouter";
-        out.defaultModels[slot] = { provider, model };
+        const maxRounds =
+          typeof entry["maxRounds"] === "number"
+            ? clampMaxRounds(entry["maxRounds"])
+            : out.defaultModels[slot].maxRounds;
+        out.defaultModels[slot] = { provider, model, maxRounds };
       }
     }
   }

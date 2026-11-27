@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 export type ModelSlot = {
   provider: string;
   model: string;
+  /** Agentic round budget; -1 = unlimited. */
+  maxRounds?: number;
 };
 
 export type WikiSettingsPayload = {

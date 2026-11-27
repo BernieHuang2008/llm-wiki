@@ -29,9 +29,12 @@ export type ChatAgentToolTrace = {
 export type ChatAgentTrace = {
   thinking: string;
   tools: ChatAgentToolTrace[];
+  /** Most recent agent round reached (1-based). Absent on old persisted traces. */
+  round?: number;
 };
 
 export type ChatAgentEvent =
+  | { type: "round"; round: number }
   | { type: "thinking"; text: string }
   | { type: "content"; text: string }
   | { type: "tool_call"; tool: ChatAgentToolTrace }
@@ -50,7 +53,11 @@ export type RunChatAgentOptions = {
   system: string;
   messages: ChatAgentMessage[];
   signal?: AbortSignal;
-  /** Safety valve against a model that keeps calling tools forever. */
+  /**
+   * Safety valve against a model that keeps calling tools forever. A negative
+   * value (conventionally `-1`) means no limit: loop until the model answers or
+   * the caller aborts. Omitted falls back to `DEFAULT_MAX_STEPS`.
+   */
   maxSteps?: number;
   tools?: readonly LlmToolDefinition[];
   onEvent?: (event: ChatAgentEvent) => void;
@@ -83,6 +90,7 @@ export class ChatAgentAbortedError extends Error {
 export async function runChatAgent(opts: RunChatAgentOptions): Promise<RunChatAgentResult> {
   const tools = opts.tools ?? AGENT_TOOLS;
   const maxSteps = opts.maxSteps ?? DEFAULT_MAX_STEPS;
+  const unlimited = maxSteps < 0;
   const toolContext: AgentToolContext = { wikiPath: opts.wikiPath, db: opts.db };
   const trace: ChatAgentTrace = { thinking: "", tools: [] };
   const messages: AgentMessage[] = [
@@ -98,10 +106,12 @@ export async function runChatAgent(opts: RunChatAgentOptions): Promise<RunChatAg
   let partialText = "";
 
   try {
-    for (let step = 0; step < maxSteps; step++) {
+    for (let step = 1; unlimited || step <= maxSteps; step++) {
       opts.signal?.throwIfAborted();
       // Only the current step's content can be a partial final answer.
       partialText = "";
+      trace.round = step;
+      opts.onEvent?.({ type: "round", round: step });
 
       const result = await chatAgentStep({
         client: opts.client,

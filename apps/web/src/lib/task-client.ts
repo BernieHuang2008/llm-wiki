@@ -147,6 +147,8 @@ export type AgentToolTrace = {
 export type AgentTrace = {
   thinking: string;
   tools: AgentToolTrace[];
+  /** Current/most recent agent round (1-based). */
+  round?: number;
 };
 
 export type LiveTaskSnapshot = {
@@ -164,6 +166,8 @@ export type LiveTaskHandlers = {
   onDelta?: (text: string) => void;
   /** A reasoning-token delta. */
   onThinking?: (text: string) => void;
+  /** The agent moved to a new round. */
+  onRound?: (round: number) => void;
   /** A tool call started or changed status. */
   onTool?: (tool: AgentToolTrace) => void;
   /** Phase label ("正在生成回复…") for the stretches with no text yet. */
@@ -234,6 +238,7 @@ export function watchTaskLive(id: string, handlers: LiveTaskHandlers = {}): Live
     on<Record<string, never>>("reset", () => handlers.onReset?.());
     on<{ text: string }>("delta", (data) => handlers.onDelta?.(data.text));
     on<{ text: string }>("thinking", (data) => handlers.onThinking?.(data.text));
+    on<{ round: number }>("round", (data) => handlers.onRound?.(data.round));
     on<{ tool: AgentToolTrace }>("tool_call", (data) => handlers.onTool?.(data.tool));
     on<{ tool: AgentToolTrace }>("tool_result", (data) => handlers.onTool?.(data.tool));
     on<{ progress: string | null }>("progress", (data) => handlers.onProgress?.(data.progress));

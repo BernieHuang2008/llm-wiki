@@ -9,7 +9,7 @@ import { QueryAnswer, type StoredQueryResponse } from "@/components/query/query-
 import { RecentQueries } from "@/components/query/recent-queries";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { fetchTask, isActive, type PublicTask } from "@/lib/task-client";
+import { cancelTask, fetchTask, isActive, type PublicTask } from "@/lib/task-client";
 import { useWikiSettings } from "@/lib/use-wiki-settings";
 
 type QueryResponse = StoredQueryResponse;
@@ -30,6 +30,8 @@ export function QueryView() {
   const [progress, setProgress] = useState<string | null>(null);
   const [result, setResult] = useState<QuerySuccess | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
 
   const [promoting, setPromoting] = useState(false);
   const [promoteResult, setPromoteResult] = useState<{ slug: string } | null>(null);
@@ -68,6 +70,8 @@ export function QueryView() {
     setBusy(true);
     setResult(null);
     setError(null);
+    setNotice(null);
+    setCurrentTaskId(null);
     setProgress("已提交，等待执行…");
     setPromoteResult(null);
     setPromoteError(null);
@@ -89,12 +93,15 @@ export function QueryView() {
 
       // Poll until the background task settles.
       const taskId = json.task.id;
+      setCurrentTaskId(taskId);
       for (;;) {
         const task = await fetchTask(taskId);
         if (!aliveRef.current) return;
         setProgress(task.progress ?? null);
         if (!isActive(task)) {
-          if (task.status === "succeeded") {
+          if (task.status === "canceled") {
+            setNotice("已停止生成。");
+          } else if (task.status === "succeeded") {
             const out = (task.output ?? {}) as QueryTaskOutput;
             if (out.response) {
               setResult({
@@ -120,6 +127,19 @@ export function QueryView() {
     } finally {
       setBusy(false);
       setProgress(null);
+      setCurrentTaskId(null);
+    }
+  }
+
+  async function onStop() {
+    if (!currentTaskId) return;
+    setNotice("正在停止…");
+    try {
+      await cancelTask(currentTaskId);
+      setNotice("正在停止生成…");
+    } catch (err) {
+      setNotice(null);
+      setError((err as Error).message);
     }
   }
 
@@ -177,7 +197,17 @@ export function QueryView() {
             }
           }}
         />
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {busy ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void onStop()}
+              disabled={!currentTaskId}
+            >
+              停止
+            </Button>
+          ) : null}
           <Button type="submit" disabled={!question.trim() || busy}>
             {busy ? "处理中…" : "提问"}
           </Button>
@@ -198,6 +228,12 @@ export function QueryView() {
       {busy ? (
         <p className="mt-6 rounded-md bg-secondary/40 px-3 py-2 text-sm text-muted-foreground">
           任务已在后台运行{progress ? `：${progress}` : "…"}。
+        </p>
+      ) : null}
+
+      {notice ? (
+        <p className="mt-6 rounded-md bg-secondary/40 px-3 py-2 text-sm text-muted-foreground">
+          {notice}
         </p>
       ) : null}
 

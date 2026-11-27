@@ -34,6 +34,7 @@ export type LiveStreamSnapshot = {
 export type LiveStreamEvent =
   /** A new attempt replaced the buffer (task retry) — drop what you rendered. */
   | { type: "reset" }
+  | { type: "round"; round: number }
   | { type: "delta"; text: string }
   | { type: "thinking"; text: string }
   | { type: "tool_call"; tool: ChatAgentToolTrace }
@@ -125,6 +126,14 @@ export function appendLiveText(taskId: string, delta: string): void {
   if (stream.text.length >= MAX_TEXT_CHARS) return;
   stream.text += delta;
   emit(stream, { type: "delta", text: delta });
+}
+
+/** Marks the agent's current round so viewers can show a live counter. */
+export function setLiveRound(taskId: string, round: number): void {
+  const stream = registry().get(taskId);
+  if (!stream || stream.status !== "running") return;
+  stream.trace.round = round;
+  emit(stream, { type: "round", round });
 }
 
 /** Streams reasoning tokens into the trace. */
@@ -242,6 +251,7 @@ function snapshot(stream: LiveStream): LiveStreamSnapshot {
     trace: {
       thinking: stream.trace.thinking,
       tools: stream.trace.tools.map((tool) => ({ ...tool })),
+      ...(stream.trace.round !== undefined ? { round: stream.trace.round } : {}),
     },
     finished: stream.status !== "running",
   };
