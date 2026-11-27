@@ -211,7 +211,7 @@ export type ModelSlotConfig = {
 };
 
 /** Default round budget for an agentic operation. */
-export const DEFAULT_MAX_ROUNDS = 8;
+export const DEFAULT_MAX_ROUNDS = -1;
 /** Sentinel for "no limit" — keep looping until a final answer or abort. */
 export const UNLIMITED_ROUNDS = -1;
 
