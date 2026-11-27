@@ -160,7 +160,7 @@ export default function AboutPage() {
         </p>
       </Section>
 
-      <Section eyebrow="致谢" title="由 Yasas 制作，范式来自 Karpathy。">
+      <Section eyebrow="致谢" title="由 Yasas 制作，Bernie 改进，范式来自 Karpathy。">
         <p>
           由{" "}
           <a
@@ -171,7 +171,17 @@ export default function AboutPage() {
           >
             Yasas
           </a>{" "}
-          从零实现 LLM Wiki 范式，该范式由{" "}
+          从零实现 LLM Wiki 范式，
+          由{" "}
+          <a
+            href="https://github.com/BernieHuang2008"
+            target="_blank"
+            rel="noreferrer"
+            className="text-primary underline underline-offset-2"
+          >
+            Bernie
+          </a>{" "}
+          改进代码，该范式由{" "}
           <a
             href="https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f"
             target="_blank"

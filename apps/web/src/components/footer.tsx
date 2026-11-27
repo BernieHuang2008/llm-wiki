@@ -36,12 +36,12 @@ export async function Footer({ className = "" }: { className?: string }) {
         <span>
           LLM Wiki，作者{" "}
           <Link
-            href="https://github.com/ddsyasas"
+            href="https://github.com/BernieHuang2008"
             target="_blank"
             rel="noreferrer"
             className="hover:text-foreground"
           >
-            Yasas
+            Bernie
           </Link>
         </span>
         <span aria-hidden>·</span>
@@ -81,7 +81,7 @@ export async function Footer({ className = "" }: { className?: string }) {
         </Link>
         <span aria-hidden>·</span>
         <Link
-          href="https://github.com/ddsyasas/llm-wiki"
+          href="https://github.com/BernieHuang2008/llm-wiki"
           target="_blank"
           rel="noreferrer"
           className="hover:text-foreground"

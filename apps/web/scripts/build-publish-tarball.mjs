@@ -101,7 +101,7 @@ function buildPublishablePackageJson(src, packageJsonByName) {
     description:
       "A personal Wikipedia an LLM maintains for you. Local-first, BYOK, single CLI.",
     license: src.license ?? "MIT",
-    author: src.author ?? "Yasas",
+    author: src.author ?? "Bernie",
     repository: {
       type: "git",
       url: "https://github.com/ddsyasas/llm-wiki.git",
