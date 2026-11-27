@@ -24,6 +24,7 @@ import {
   finishTask,
   getApiKey,
   getSource,
+  getTask,
   ingestSource,
   ingestVisionSource,
   lintWiki,
@@ -62,7 +63,14 @@ import {
 
 import { detectSourceFormat, extractBuffer, readStoredSource } from "@/lib/server-ingestion";
 import { ConcurrencyGate } from "@/lib/concurrency-gate";
-import { appendLiveText, beginLiveStream, finishLiveStream, setLiveStreamProgress } from "@/lib/live-stream";
+import {
+  appendLiveText,
+  appendLiveThinking,
+  beginLiveStream,
+  finishLiveStream,
+  setLiveStreamProgress,
+  upsertLiveTool,
+} from "@/lib/live-stream";
 import {
   openWikiContext,
   openWikiContextSync,
@@ -345,6 +353,14 @@ async function executeTask(task: TaskRow): Promise<void> {
     }
   }, HEARTBEAT_MS);
 
+  activeControllers.set(task.id, watchdog);
+  // A cancel that arrived between "claimed" and "controller registered" would
+  // otherwise be lost until the task finished.
+  if (getTask(ctx.db, task.id)?.status === "canceled") {
+    cancelRequested.add(task.id);
+    watchdog.abort(new Error("用户已停止生成"));
+  }
+
   lastProgress.set(task.id, "已开始执行");
 
   try {
@@ -359,19 +375,25 @@ async function executeTask(task: TaskRow): Promise<void> {
     // here even though the chat runner normally does this itself (no-op then).
     finishLiveStream(task.id, "succeeded");
   } catch (err) {
-    const message = deadlineHit
-      ? `任务超过 ${Math.round(TASK_BUDGET_MS / 60_000)} 分钟仍未完成，已中止。`
-      : errorMessage(err);
+    const canceled =
+      cancelRequested.has(task.id) || getTask(ctx.db, task.id)?.status === "canceled";
+    const message = canceled
+      ? "用户已停止生成"
+      : deadlineHit
+        ? `任务超过 ${Math.round(TASK_BUDGET_MS / 60_000)} 分钟仍未完成，已中止。`
+        : errorMessage(err);
     // Surface the reason on the source row so the sources list can explain why
     // the item is still waiting instead of showing a bare "pending".
-    if (task.source_id) {
+    if (task.source_id && !canceled) {
       try {
         markSourceFailed(ctx.db, task.source_id, message);
       } catch {
         // Source may have been deleted while the task ran.
       }
     }
-    if (!deadlineHit && task.attempts < MAX_ATTEMPTS && isRetryable(err)) {
+    if (canceled) {
+      finishLiveStream(task.id, "canceled", message);
+    } else if (!deadlineHit && task.attempts < MAX_ATTEMPTS && isRetryable(err)) {
       const backoff = RETRY_BACKOFF_MS[Math.max(0, task.attempts - 1)] ?? 8_000;
       requeueTask(
         ctx.db,
@@ -391,12 +413,30 @@ async function executeTask(task: TaskRow): Promise<void> {
     clearTimeout(deadline);
     clearInterval(heartbeat);
     lastProgress.delete(task.id);
+    activeControllers.delete(task.id);
+    cancelRequested.delete(task.id);
     ctx.db.close();
   }
 }
 
 /** Last progress message per running task, so the heartbeat can rewrite it. */
 const lastProgress = new Map<string, string>();
+
+/** AbortControllers for running tasks, so the Stop button can reach them. */
+const activeControllers = new Map<string, AbortController>();
+const cancelRequested = new Set<string>();
+
+/**
+ * Aborts a running task. Returns false when the task has not reached a worker
+ * yet — the DB row is already `canceled`, so it will simply never be claimed.
+ */
+export function abortTask(taskId: string, reason = "用户已停止生成"): boolean {
+  const controller = activeControllers.get(taskId);
+  if (!controller) return false;
+  cancelRequested.add(taskId);
+  controller.abort(new Error(reason));
+  return true;
+}
 
 function bumpAttempts(db: Db, id: string): void {
   db.prepare(`UPDATE tasks SET attempts = attempts + 1 WHERE id = ?`).run(id);
@@ -646,10 +686,10 @@ async function runChat(task: TaskRow, ctx: WikiContext, signal: AbortSignal): Pr
   const provider = settings.defaultModels.chat.provider;
   const capture = captureClientModel(createClient(await requireApiKey(provider), provider, signal));
 
-  progress(db, task.id, "正在生成回复…");
+  progress(db, task.id, "正在思考并检索…");
   // Open the live buffer before the first token so a viewer that connects while
   // the model is still thinking gets progress updates instead of silence.
-  beginLiveStream(task.id, "正在生成回复…");
+  beginLiveStream(task.id, "正在思考并检索…");
   const result = await sendChatMessage({
     wikiPath,
     db,
@@ -657,7 +697,18 @@ async function runChat(task: TaskRow, ctx: WikiContext, signal: AbortSignal): Pr
     userMessage: input.message,
     client: capture.client,
     skipUserAppend: input.userMessageSaved === true,
+    signal,
     onDelta: (delta) => appendLiveText(task.id, delta),
+    onEvent: (event) => {
+      if (event.type === "thinking") appendLiveThinking(task.id, event.text);
+      else if (event.type === "tool_call" || event.type === "tool_result") {
+        upsertLiveTool(task.id, event.tool);
+        setLiveStreamProgress(
+          task.id,
+          event.type === "tool_call" ? `正在调用 ${event.tool.name}…` : null,
+        );
+      }
+    },
     ...(input.modelOverride ? { modelOverride: input.modelOverride } : {}),
   });
   // Row first, then the live buffer: a viewer that reacts to "end" by
@@ -877,6 +928,7 @@ function isRetryable(err: unknown): boolean {
   if (err instanceof ContextLengthError || err instanceof UnknownModelError) return false;
   if (err instanceof RateLimitError) return true;
   const message = errorMessage(err);
+  if (/工具调用达到.*轮仍未给出最终回答/.test(message)) return false;
   // Schema drift on a weak model is usually transient; a deleted source or a
   // missing API key never is.
   if (/schema validation|not valid JSON|Unexpected token/i.test(message)) return true;

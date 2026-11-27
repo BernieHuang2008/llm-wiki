@@ -9,10 +9,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { MarkdownView } from "@/components/wiki/markdown-view";
 import { PromoteMessageDialog } from "@/components/chats/promote-message";
 import {
+  cancelTask,
   fetchTask,
   findActiveChatTask,
   isActive,
   watchTaskLive,
+  type AgentTrace,
   type LiveTaskWatch,
 } from "@/lib/task-client";
 import { cn } from "@/lib/utils";
@@ -32,6 +34,7 @@ type ChatMessage = {
   role: "user" | "assistant";
   time: string;
   content: string;
+  trace?: AgentTrace;
 };
 
 type ChatPayload = { row: ChatRow; messages: ChatMessage[] };
@@ -56,6 +59,10 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
    * file via `refreshChat`, never from here.
    */
   const [streamText, setStreamText] = useState<string | null>(null);
+  /** Reasoning and tool calls for the turn currently streaming. */
+  const [liveTrace, setLiveTrace] = useState<AgentTrace | null>(null);
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
+  const [statusNotice, setStatusNotice] = useState<string | null>(null);
 
   const [editingTitle, setEditingTitle] = useState(false);
   const [draftTitle, setDraftTitle] = useState(initialChat.row.title);
@@ -137,21 +144,37 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
         // buffer holds, so anything still waiting to be flushed is redundant.
         pendingTextRef.current = "";
         setStreamText(snapshot.text.length > 0 ? snapshot.text : null);
-        if (snapshot.progress) setProgress(snapshot.progress);
+        if (snapshot.trace) setLiveTrace(snapshot.trace);
+        setProgress(snapshot.progress);
       },
       onReset: () => {
         pendingTextRef.current = "";
         setStreamText(null);
+        setLiveTrace(null);
       },
       onDelta: (text) => {
         pendingTextRef.current += text;
       },
-      onProgress: (next) => {
-        if (next) setProgress(next);
+      onThinking: (text) => {
+        setLiveTrace((prev) => ({
+          thinking: `${prev?.thinking ?? ""}${text}`,
+          tools: prev?.tools ?? [],
+        }));
       },
+      onTool: (tool) => {
+        setLiveTrace((prev) => {
+          const tools = [...(prev?.tools ?? [])];
+          const index = tools.findIndex((entry) => entry.id === tool.id);
+          if (index === -1) tools.push(tool);
+          else tools[index] = tool;
+          return { thinking: prev?.thinking ?? "", tools };
+        });
+      },
+      onProgress: (next) => setProgress(next),
       onRetrying: (error) => {
         pendingTextRef.current = "";
         setStreamText(null);
+        setLiveTrace(null);
         setProgress(error ? `上一次尝试失败，正在重试：${error}` : "上一次尝试失败，正在重试…");
       },
     });
@@ -162,14 +185,24 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
         // The watch gave up before the task settled (the server went away
         // mid-stream). One hard read decides — and it throws if the row is gone.
         const row = await fetchTask(taskId);
+        if (row.status === "canceled") {
+          setStatusNotice("已停止生成");
+          return;
+        }
         if (row.status !== "succeeded") {
           throw new Error(row.error ?? "生成回复失败。");
         }
+        setStatusNotice(null);
+        return;
+      }
+      if (task.status === "canceled") {
+        setStatusNotice("已停止生成");
         return;
       }
       if (task.status !== "succeeded") {
         throw new Error(task.error ?? "生成回复失败。");
       }
+      setStatusNotice(null);
     } finally {
       if (watcherRef.current === watch) watcherRef.current = null;
     }
@@ -186,6 +219,9 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
       const active = await findActiveChatTask(chatId).catch(() => null);
       if (cancelled || !active) return;
       setBusy(true);
+      setCurrentTaskId(active.id);
+      setLiveTrace(null);
+      setStatusNotice(null);
       setProgress(active.progress ?? "已提交，等待执行…");
       followRef.current = true;
       try {
@@ -199,6 +235,8 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
           setBusy(false);
           setProgress(null);
           setStreamText(null);
+          setLiveTrace(null);
+          setCurrentTaskId(null);
         }
       }
     })();
@@ -216,6 +254,9 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
     if (!input.trim() || busy) return;
     setBusy(true);
     setSendError(null);
+    setStatusNotice(null);
+    setLiveTrace(null);
+    setCurrentTaskId(null);
     setProgress("已提交，等待执行…");
     const optimisticUser: ChatMessage = {
       role: "user",
@@ -248,6 +289,7 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
         throw new Error(json.error ?? `HTTP ${res.status}`);
       }
       queued = true;
+      setCurrentTaskId(json.task.id);
 
       // The user turn is already saved server-side; watch the assistant half of
       // the turn stream in. Leaving the page does not cancel it.
@@ -274,6 +316,20 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
       setBusy(false);
       setProgress(null);
       setStreamText(null);
+      setLiveTrace(null);
+      setCurrentTaskId(null);
+    }
+  }
+
+  async function onStop() {
+    if (!currentTaskId) return;
+    setProgress("正在停止…");
+    try {
+      await cancelTask(currentTaskId);
+      setStatusNotice("正在停止生成…");
+    } catch (err) {
+      setStatusNotice(null);
+      setSendError((err as Error).message);
     }
   }
 
@@ -344,9 +400,7 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
     try {
       // Stringify messages the same way the chat file is stored so the LLM
       // sees a natural conversation transcript, not a JSON blob.
-      const body = chat.messages
-        .map((m) => `## ${m.role} [${m.time}]\n${m.content}`)
-        .join("\n\n");
+      const body = chat.messages.map((m) => `## ${m.role} [${m.time}]\n${m.content}`).join("\n\n");
       const res = await fetch("/api/ingest", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -473,22 +527,19 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
       {ingestChatResult ? (
         <div className="border-b border-emerald-500/30 bg-emerald-500/10 px-6 py-3 text-sm text-emerald-800 dark:text-emerald-200">
           <p>
-            <strong>{ingestChatResult.pending ? "提案已生成，等待确认。" : "已归档进 wiki。"}</strong>{" "}
+            <strong>
+              {ingestChatResult.pending ? "提案已生成，等待确认。" : "已归档进 wiki。"}
+            </strong>{" "}
             新建 {ingestChatResult.newPages.length} 个页面，更新{" "}
             {ingestChatResult.updatedPages.length} 个。
-            {ingestChatResult.pending
-              ? " 审批开关已开启，请在“Source”页确认后再写入。"
-              : ""}
+            {ingestChatResult.pending ? " 审批开关已开启，请在“Source”页确认后再写入。" : ""}
           </p>
           {ingestChatResult.newPages.length > 0 ? (
             <p className="mt-1 text-xs">
               新建：{" "}
               {ingestChatResult.newPages.map((p, i) => (
                 <span key={p.slug}>
-                  <a
-                    href={`/wiki/${p.slug}`}
-                    className="underline underline-offset-2"
-                  >
+                  <a href={`/wiki/${p.slug}`} className="underline underline-offset-2">
                     {p.title}
                   </a>
                   {i < ingestChatResult.newPages.length - 1 ? "、" : ""}
@@ -543,6 +594,7 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
                   </div>
                 ) : (
                   <div className="max-w-[92%]">
+                    {m.trace ? <AgentTraceView trace={m.trace} /> : null}
                     <article className="text-sm">
                       <MarkdownView content={m.content} knownSlugs={knownSlugs} />
                     </article>
@@ -574,9 +626,7 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
                 aria-hidden
                 className="inline-block h-3.5 w-[2px] animate-pulse bg-muted-foreground/70"
               />
-              <span>
-                {progress ? progress : "正在生成回复…"}
-              </span>
+              <span>{progress ? progress : "正在生成回复…"}</span>
             </p>
           </div>
         ) : null}
@@ -605,9 +655,21 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
         />
         <div className="mt-2 flex items-center justify-between">
           <p className="text-xs text-muted-foreground">Cmd/Ctrl + Enter 发送</p>
-          <Button type="submit" disabled={!input.trim() || busy}>
-            {busy ? "生成中…" : "发送"}
-          </Button>
+          <div className="flex items-center gap-2">
+            {busy ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void onStop()}
+                disabled={!currentTaskId}
+              >
+                停止
+              </Button>
+            ) : null}
+            <Button type="submit" disabled={!input.trim() || busy}>
+              {busy ? "生成中…" : "发送"}
+            </Button>
+          </div>
         </div>
       </form>
 
@@ -620,4 +682,80 @@ export function ChatView({ chatId, initialChat, knownSlugs, folders }: Props) {
       ) : null}
     </div>
   );
+}
+
+function AgentTraceView({ trace, live = false }: { trace: AgentTrace; live?: boolean }) {
+  const [open, setOpen] = useState(live);
+  useEffect(() => {
+    if (live) setOpen(true);
+  }, [live]);
+
+  const thinking = trace.thinking.trim();
+  if (!thinking && trace.tools.length === 0) return null;
+
+  return (
+    <div className="mb-2 overflow-hidden rounded-lg border border-border/60 bg-muted/20">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs text-muted-foreground hover:bg-muted/40"
+      >
+        <span className="font-medium text-foreground/80">思考与工具调用</span>
+        <span>
+          {trace.tools.length > 0 ? `${trace.tools.length} 个工具 · ` : ""}
+          {open ? "收起" : "展开"}
+        </span>
+      </button>
+      {open ? (
+        <div className="space-y-2 border-t border-border/60 px-3 py-3">
+          {thinking ? (
+            <div>
+              <p className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                思考过程
+              </p>
+              <pre className="max-h-56 overflow-y-auto whitespace-pre-wrap break-words font-sans text-xs leading-relaxed text-foreground/80">
+                {thinking}
+              </pre>
+            </div>
+          ) : null}
+          {trace.tools.map((tool) => (
+            <div key={tool.id} className="rounded-md border border-border/60 bg-background/60 p-2">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <code className="font-mono text-foreground">{tool.name}</code>
+                <span
+                  className={cn(
+                    "rounded px-1.5 py-0.5 text-[10px]",
+                    tool.status === "running" &&
+                      "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+                    tool.status === "ok" &&
+                      "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+                    tool.status === "error" && "bg-destructive/10 text-destructive",
+                  )}
+                >
+                  {tool.status === "running" ? "执行中" : tool.status === "ok" ? "完成" : "失败"}
+                </span>
+                {tool.durationMs !== null ? (
+                  <span className="text-[10px] text-muted-foreground">{tool.durationMs}ms</span>
+                ) : null}
+              </div>
+              <p className="mt-1 text-[11px] text-muted-foreground">{tool.summary}</p>
+              {tool.arguments.trim() ? (
+                <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/40 p-1.5 font-mono text-[10px] text-muted-foreground">
+                  {prettyJson(tool.arguments)}
+                </pre>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function prettyJson(raw: string): string {
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2);
+  } catch {
+    return raw;
+  }
 }

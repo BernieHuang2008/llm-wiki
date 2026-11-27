@@ -1,5 +1,5 @@
 /**
- * The seven read-only tools this MCP server exposes.
+ * The nine read-only tools this MCP server exposes.
  *
  * The list is the single source of truth for three things that must never
  * drift apart: the tool registrations on the server, the per-tool switches in
@@ -13,6 +13,8 @@ export const MCP_TOOL_IDS = [
   "wiki_get_section",
   "wiki_backlinks",
   "wiki_get_graph",
+  "wiki_list_raw",
+  "wiki_read_raw",
 ] as const;
 
 export type McpToolId = (typeof MCP_TOOL_IDS)[number];
@@ -60,6 +62,16 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
     id: "wiki_get_graph",
     label: "知识图谱",
     summary: "返回节点与边，或按条件返回子图。",
+  },
+  {
+    id: "wiki_list_raw",
+    label: "列出原始文件",
+    summary: "浏览 raw/ 层的原始资料：文件名、格式、大小、入库状态与是否有文本层。",
+  },
+  {
+    id: "wiki_read_raw",
+    label: "读取原始文件",
+    summary: "读取 raw/ 层的原始文本；PDF 等二进制格式优先返回已提取的 .extracted.md 文本层。",
   },
 ] as const;
 

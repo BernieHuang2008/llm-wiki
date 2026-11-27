@@ -179,6 +179,9 @@ Current wiki index:
 Existing pages (top 20 most relevant):
 {PAGES}
 
+Related raw-source excerpts (first-hand originals from raw/, when any match):
+{RAW_SOURCES}
+
 Output ONLY valid JSON matching this schema, no preamble, no markdown fences:
 {JSON_SCHEMA_DESCRIPTION}
 ```
@@ -203,6 +206,9 @@ Wiki index:
 
 Relevant pages:
 {PAGES}
+
+Relevant raw-source excerpts (first-hand originals from raw/; cite as [raw:filename]):
+{RAW_SOURCES}
 
 User question:
 {QUESTION}
@@ -300,6 +306,17 @@ function estimateTokens(text: string): number {
 ```
 
 OpenRouter publishes per-model pricing. Hardcode known prices in `packages/llm/src/models.ts` with a fallback to "unknown cost" for new models.
+
+## Chat is agentic
+
+Ingest, query and lint are single-call JSON operations. Chat is different: each
+user turn runs an agent loop (`packages/core/src/chat-agent.ts`) with tool
+definitions from `packages/core/src/agent-tools.ts`. The model can search/read
+wiki pages and `raw/` sources, receive the tool results, and continue until it
+writes a final markdown answer. Reasoning tokens, tool calls and results are
+streamed to the chat UI and persisted as an encoded trace comment in the chat
+file. The user can stop the turn at any point; the executor aborts the in-flight
+request and marks the task `canceled`.
 
 ## Streaming
 

@@ -14,7 +14,11 @@
 //  - Nothing here is authoritative. If the process restarts, the buffer is
 //    gone and the task row in SQLite is still the source of truth.
 
-export type LiveStreamStatus = "running" | "succeeded" | "failed";
+import type { ChatAgentToolTrace, ChatAgentTrace } from "@llm-wiki/core";
+
+export type LiveStreamStatus = "running" | "succeeded" | "failed" | "canceled";
+
+export type AgentTrace = ChatAgentTrace;
 
 export type LiveStreamSnapshot = {
   taskId: string;
@@ -22,6 +26,7 @@ export type LiveStreamSnapshot = {
   progress: string | null;
   status: LiveStreamStatus;
   error: string | null;
+  trace: AgentTrace;
   /** True once no further delta can arrive for this task. */
   finished: boolean;
 };
@@ -30,8 +35,11 @@ export type LiveStreamEvent =
   /** A new attempt replaced the buffer (task retry) — drop what you rendered. */
   | { type: "reset" }
   | { type: "delta"; text: string }
+  | { type: "thinking"; text: string }
+  | { type: "tool_call"; tool: ChatAgentToolTrace }
+  | { type: "tool_result"; tool: ChatAgentToolTrace }
   | { type: "progress"; progress: string | null }
-  | { type: "end"; status: "succeeded" | "failed"; error: string | null };
+  | { type: "end"; status: "succeeded" | "failed" | "canceled"; error: string | null };
 
 export type LiveStreamListener = (event: LiveStreamEvent) => void;
 
@@ -41,6 +49,7 @@ type LiveStream = {
   progress: string | null;
   status: LiveStreamStatus;
   error: string | null;
+  trace: AgentTrace;
   createdAt: number;
   finishedAt: number | null;
   subscribers: Set<LiveStreamListener>;
@@ -89,6 +98,7 @@ export function beginLiveStream(taskId: string, progress: string | null = null):
     existing.progress = progress;
     existing.status = "running";
     existing.error = null;
+    existing.trace = emptyTrace();
     existing.createdAt = Date.now();
     existing.finishedAt = null;
     emit(existing, { type: "reset" });
@@ -99,6 +109,7 @@ export function beginLiveStream(taskId: string, progress: string | null = null):
       progress,
       status: "running",
       error: null,
+      trace: emptyTrace(),
       createdAt: Date.now(),
       finishedAt: null,
       subscribers: new Set(),
@@ -116,6 +127,25 @@ export function appendLiveText(taskId: string, delta: string): void {
   emit(stream, { type: "delta", text: delta });
 }
 
+/** Streams reasoning tokens into the trace. */
+export function appendLiveThinking(taskId: string, delta: string): void {
+  const stream = registry().get(taskId);
+  if (!stream || stream.status !== "running" || delta.length === 0) return;
+  if (stream.trace.thinking.length >= MAX_TEXT_CHARS) return;
+  stream.trace.thinking += delta;
+  emit(stream, { type: "thinking", text: delta });
+}
+
+/** Adds or replaces one tool card in the trace. */
+export function upsertLiveTool(taskId: string, tool: ChatAgentToolTrace): void {
+  const stream = registry().get(taskId);
+  if (!stream || stream.status !== "running") return;
+  const index = stream.trace.tools.findIndex((entry) => entry.id === tool.id);
+  if (index === -1) stream.trace.tools.push(tool);
+  else stream.trace.tools[index] = tool;
+  emit(stream, { type: tool.status === "running" ? "tool_call" : "tool_result", tool });
+}
+
 /** Updates the phase label ("正在生成回复…") shown before any text arrives. */
 export function setLiveStreamProgress(taskId: string, progress: string | null): void {
   const stream = registry().get(taskId);
@@ -131,7 +161,7 @@ export function setLiveStreamProgress(taskId: string, progress: string | null): 
  */
 export function finishLiveStream(
   taskId: string,
-  status: "succeeded" | "failed",
+  status: "succeeded" | "failed" | "canceled",
   error: string | null = null,
 ): void {
   const stream = registry().get(taskId);
@@ -175,6 +205,7 @@ export function subscribeLiveStream(taskId: string, listener: LiveStreamListener
       progress: null,
       status: "running",
       error: null,
+      trace: emptyTrace(),
       createdAt: Date.now(),
       finishedAt: null,
       subscribers: new Set(),
@@ -185,11 +216,20 @@ export function subscribeLiveStream(taskId: string, listener: LiveStreamListener
     const current = streams.get(taskId);
     if (!current) return;
     current.subscribers.delete(listener);
-    if (current.status === "running" && current.text.length === 0) {
+    if (
+      current.status === "running" &&
+      current.text.length === 0 &&
+      current.trace.thinking.length === 0 &&
+      current.trace.tools.length === 0
+    ) {
       // Waiting buffer nobody is waiting on any more.
       streams.delete(taskId);
     }
   };
+}
+
+function emptyTrace(): AgentTrace {
+  return { thinking: "", tools: [] };
 }
 
 function snapshot(stream: LiveStream): LiveStreamSnapshot {
@@ -199,6 +239,10 @@ function snapshot(stream: LiveStream): LiveStreamSnapshot {
     progress: stream.progress,
     status: stream.status,
     error: stream.error,
+    trace: {
+      thinking: stream.trace.thinking,
+      tools: stream.trace.tools.map((tool) => ({ ...tool })),
+    },
     finished: stream.status !== "running",
   };
 }

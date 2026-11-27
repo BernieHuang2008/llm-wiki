@@ -104,6 +104,9 @@ We can't include every page in the context window. Strategy:
 
 1. Always include `index.md` (cheap, gives the LLM the full catalog)
 2. For "relevant pages", use FTS5 to search for top-K (K=15) pages matching the extracted source's content
+   - Also run the same query against the `raw/` layer and include a few first-hand excerpts
+     (k=4), excluding the source currently being ingested. This gives the ingest LLM access to
+     originals that have not been fully compiled into pages yet.
 3. Cap the total context at 80% of the model's input limit
 4. If a page is very long, include its first 1000 words + a "[truncated]" marker
 

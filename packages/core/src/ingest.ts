@@ -5,12 +5,8 @@ import { randomUUID } from "node:crypto";
 import { callLLM, estimateCostCents, type LlmClient, type UserContentPart } from "@llm-wiki/llm";
 
 import type { Db } from "./db";
-import {
-  getPage,
-  indexPageForSearch,
-  linkPageSource,
-  upsertPage,
-} from "./db-pages";
+import { getPage, indexPageForSearch, linkPageSource, upsertPage } from "./db-pages";
+import { searchRawSources } from "./raw-search";
 import { scheduleWikiIndexSync, searchPagesUnified } from "./search-meili";
 import { insertSource, listSourceRows, updateSource } from "./db-sources";
 import { upsertSyncState } from "./db-sync";
@@ -19,12 +15,7 @@ import { parseIndexEntries, renderIndex } from "./index-builder";
 import { buildIngestPrompt, type ExistingPageSnippet } from "./prompts/ingest";
 import { IngestResponseSchema, type IngestResponse } from "./schema";
 import { withWriteLock } from "./write-lock";
-import type {
-  ExtractedVisionSource,
-  PageRow,
-  SourceFormat,
-  SourceRow,
-} from "./types";
+import type { ExtractedVisionSource, PageRow, SourceFormat, SourceRow } from "./types";
 import {
   appendLog,
   readIndex,
@@ -37,6 +28,7 @@ import {
 
 const PAGE_HISTORY_DIR = "page-history";
 const TOP_K_RELEVANT_PAGES = 15;
+const TOP_K_RAW_SOURCES = 4;
 
 // ---- Public surface -------------------------------------------------------
 
@@ -83,9 +75,12 @@ export async function ingestSource(opts: IngestSourceOptions): Promise<IngestRes
 
   opts.onProgress?.({
     phase: "context",
-    message: `Searching for relevant existing pages…`,
+    message: `Searching existing pages and raw sources…`,
   });
-  const relevantPages = await loadRelevantPages(opts.wikiPath, opts.db, opts.source);
+  const [relevantPages, rawSources] = await Promise.all([
+    loadRelevantPages(opts.wikiPath, opts.db, opts.source),
+    loadRawSources(opts.wikiPath, opts.db, opts.source, opts.sourceId),
+  ]);
 
   opts.onProgress?.({
     phase: "llm",
@@ -96,6 +91,7 @@ export async function ingestSource(opts: IngestSourceOptions): Promise<IngestRes
     schema,
     index,
     relevantPages,
+    rawSources,
     source: {
       title: opts.source.title,
       format: opts.source.format,
@@ -116,7 +112,11 @@ export async function ingestSource(opts: IngestSourceOptions): Promise<IngestRes
     model: result.model,
     input_tokens: result.usage.inputTokens,
     output_tokens: result.usage.outputTokens,
-    cost_cents: estimateCostCents(result.model, result.usage.inputTokens, result.usage.outputTokens),
+    cost_cents: estimateCostCents(
+      result.model,
+      result.usage.inputTokens,
+      result.usage.outputTokens,
+    ),
     created_at: new Date().toISOString(),
   });
 
@@ -163,22 +163,26 @@ export type IngestVisionSourceOptions = {
  * `image_url` content part with a data URL — the LLM does the OCR + extraction
  * itself. Same JSON contract, same apply step.
  */
-export async function ingestVisionSource(
-  opts: IngestVisionSourceOptions,
-): Promise<IngestResponse> {
+export async function ingestVisionSource(opts: IngestVisionSourceOptions): Promise<IngestResponse> {
   opts.onProgress?.({ phase: "context", message: "Loading wiki schema and index..." });
   const [schema, index] = await Promise.all([
     readSchemaOrDefault(opts.wikiPath),
     readIndexOrDefault(opts.wikiPath),
   ]);
 
-  // We don't run FTS5 retrieval for vision sources (we have no text yet).
-  // The LLM gets schema + index only; future iterations could pre-OCR for
-  // retrieval but V1 keeps it simple.
+  // No text yet for this source, but the title/filename can still match
+  // existing raw notes worth cross-referencing.
+  const rawSources = await loadRawSources(
+    opts.wikiPath,
+    opts.db,
+    { content: opts.source.title, title: opts.source.title, format: opts.source.format },
+    opts.sourceId,
+  );
   const prompt = buildIngestPrompt({
     schema,
     index,
     relevantPages: [],
+    rawSources,
     source: {
       title: opts.source.title,
       format: opts.source.format,
@@ -230,7 +234,11 @@ export async function ingestVisionSource(
     model: result.model,
     input_tokens: result.usage.inputTokens,
     output_tokens: result.usage.outputTokens,
-    cost_cents: estimateCostCents(result.model, result.usage.inputTokens, result.usage.outputTokens),
+    cost_cents: estimateCostCents(
+      result.model,
+      result.usage.inputTokens,
+      result.usage.outputTokens,
+    ),
     created_at: new Date().toISOString(),
   });
 
@@ -442,6 +450,23 @@ async function readIndexOrDefault(wikiPath: string): Promise<string> {
   }
 }
 
+async function loadRawSources(
+  wikiPath: string,
+  db: Db,
+  source: IngestSourceInput,
+  sourceId: string | undefined,
+) {
+  const queryText = `${source.title} ${source.content.slice(0, 500)}`;
+  try {
+    return await searchRawSources(wikiPath, db, queryText, {
+      limit: TOP_K_RAW_SOURCES,
+      excludeSourceId: sourceId ?? null,
+    });
+  } catch {
+    return [];
+  }
+}
+
 async function loadRelevantPages(
   wikiPath: string,
   db: Db,
@@ -517,7 +542,17 @@ async function applyIngestResponseUnlocked(opts: ApplyIngestResponseOptions): Pr
       },
       content: ensureTrailingNewline(np.content),
     });
-    upsertWikiRowAndIndex(db, wikiPath, np.slug, np.title, np.type, today, today, np.content, np.tags);
+    upsertWikiRowAndIndex(
+      db,
+      wikiPath,
+      np.slug,
+      np.title,
+      np.type,
+      today,
+      today,
+      np.content,
+      np.tags,
+    );
     if (sourceId) linkPageSource(db, np.slug, sourceId);
     written.push(np.slug);
   }
@@ -556,7 +591,9 @@ async function applyIngestResponseUnlocked(opts: ApplyIngestResponseOptions): Pr
     }
 
     await backupPage(wikiPath, upd.slug);
-    const mergedSources = sourceId ? mergeUnique(existing.frontmatter.sources, sourceId) : existing.frontmatter.sources;
+    const mergedSources = sourceId
+      ? mergeUnique(existing.frontmatter.sources, sourceId)
+      : existing.frontmatter.sources;
     await writePage(wikiPath, {
       slug: upd.slug,
       frontmatter: {

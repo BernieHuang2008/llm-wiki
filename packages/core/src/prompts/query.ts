@@ -1,3 +1,4 @@
+import type { RawSourceSnippet } from "../raw-search";
 import type { ExistingPageSnippet } from "./ingest";
 
 // Per docs/05 query prompt. We reuse the ExistingPageSnippet shape from the
@@ -9,13 +10,14 @@ Process:
 1. Read the index to find pages potentially relevant to the question.
 2. Read those pages.
 3. Synthesize a concise answer with [[slug]] citations pointing at the pages you actually used.
-4. If you can't answer from the wiki, say so honestly — better to admit a gap than invent.
-5. If the answer reveals a clearly useful new wiki page (one that doesn't exist yet but should), put it in suggestedNewPage; otherwise leave it null.`;
+4. Raw-source excerpts (when present) are first-hand originals from raw/. Prefer them when they are more specific than a compiled page, and cite them as [raw:<filename>].
+5. If you can't answer from the wiki or raw layer, say so honestly — better to admit a gap than invent.
+6. If the answer reveals a clearly useful new wiki page (one that doesn't exist yet but should), put it in suggestedNewPage; otherwise leave it null.`;
 
 const JSON_SHAPE = `Output ONLY a valid JSON object matching this exact shape. No prose, no markdown fences:
 
 {
-  "answer": "Markdown body of the answer. Use [[slug]] for citations.",
+  "answer": "Markdown body of the answer. Use [[slug]] for wiki-page citations and [raw:filename] for raw-source citations.",
   "pagesUsed": ["page-slug-1", "page-slug-2"],
   "suggestedNewPage": null,
   "confidence": "high",
@@ -48,6 +50,8 @@ export type BuildQueryPromptOpts = {
   schema: string;
   index: string;
   relevantPages: ExistingPageSnippet[];
+  /** First-hand excerpts from raw/ most relevant to the question. */
+  rawSources?: RawSourceSnippet[];
   question: string;
 };
 
@@ -62,6 +66,8 @@ export function buildQueryPrompt(opts: BuildQueryPromptOpts): { system: string; 
           .join("\n\n---\n\n")
       : "(no pages currently match this question — the wiki may not cover this topic yet)";
 
+  const rawBlock = renderRawSources(opts.rawSources ?? []);
+
   const system = [
     SYSTEM_RULES,
     "",
@@ -73,6 +79,9 @@ export function buildQueryPrompt(opts: BuildQueryPromptOpts): { system: string; 
     "",
     `Possibly relevant pages (top ${opts.relevantPages.length}):`,
     fenceMarkdown(pagesBlock),
+    ...(rawBlock
+      ? ["", "Relevant raw-source excerpts (first-hand):", fenceMarkdown(rawBlock)]
+      : []),
     "",
     JSON_SHAPE,
   ].join("\n");
@@ -80,6 +89,13 @@ export function buildQueryPrompt(opts: BuildQueryPromptOpts): { system: string; 
   const user = `User question:\n\n${opts.question.trim()}`;
 
   return { system, user };
+}
+
+function renderRawSources(sources: RawSourceSnippet[]): string {
+  if (sources.length === 0) return "";
+  return sources
+    .map((s) => `### ${s.title} (raw: ${s.path}, mode: ${s.mode})\n${s.excerpt}`)
+    .join("\n\n---\n\n");
 }
 
 function truncateToWords(text: string, maxWords: number): string {

@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   appendLiveText,
+  appendLiveThinking,
   beginLiveStream,
   finishLiveStream,
   readLiveStream,
   resetLiveStreams,
   setLiveStreamProgress,
   subscribeLiveStream,
+  upsertLiveTool,
   type LiveStreamEvent,
 } from "./live-stream";
 
@@ -117,6 +119,38 @@ describe("live stream buffer", () => {
 
     expect(readLiveStream("t7")?.text).toBe("answer");
     expect(readLiveStream("t7")?.progress).toBeNull();
+  });
+
+  it("streams thinking and tool calls and keeps them in the snapshot", () => {
+    beginLiveStream("t8");
+    const events: LiveStreamEvent[] = [];
+    const unsubscribe = subscribeLiveStream("t8", (event) => events.push(event));
+
+    appendLiveThinking("t8", "thinking about it");
+    upsertLiveTool("t8", {
+      id: "call_1",
+      name: "raw_read",
+      arguments: '{"source":"note.md"}',
+      status: "running",
+      summary: "执行中…",
+      durationMs: null,
+    });
+    upsertLiveTool("t8", {
+      id: "call_1",
+      name: "raw_read",
+      arguments: '{"source":"note.md"}',
+      status: "ok",
+      summary: "读取原始文件 note.md",
+      durationMs: 12,
+    });
+    finishLiveStream("t8", "canceled", "用户已停止生成");
+    unsubscribe();
+
+    expect(events.map((e) => e.type)).toEqual(["thinking", "tool_call", "tool_result", "end"]);
+    const snapshot = readLiveStream("t8");
+    expect(snapshot?.status).toBe("canceled");
+    expect(snapshot?.trace.thinking).toBe("thinking about it");
+    expect(snapshot?.trace.tools[0]).toMatchObject({ name: "raw_read", status: "ok" });
   });
 
   it("ignores text for a task that never opened a buffer", () => {

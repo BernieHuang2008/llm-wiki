@@ -9,6 +9,8 @@ import { z } from "zod";
 
 import type { McpServer } from "@modelcontextprotocol/server";
 
+import { DEFAULT_RAW_MAX_CHARS, listRawSources, readRawSource } from "@llm-wiki/core";
+
 import { pageFileExists, type WikiConnection, type WikiRegistry } from "../wiki/registry";
 import { childHeadings, extractHeadings, findHeading, sliceLines } from "../wiki/outline";
 import {
@@ -55,6 +57,7 @@ export const WIKI_ARG = z
 const MAX_RESULTS_CAP = 50;
 const MAX_DEPTH_CAP = 4;
 const MAX_NODES_CAP = 500;
+const MAX_RAW_CHARS_CAP = 500_000;
 
 export function registerTools(server: McpServer, ctx: ToolContext): void {
   const enabled = (id: McpToolId): boolean => ctx.allowedTools.includes(id);
@@ -163,7 +166,8 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
         title: "读取页面",
         description:
           "按路径读取一个页面的完整内容：Markdown 正文、frontmatter 元数据、出站与入站 Wikilink。" +
-          "正文超过约 24k 字符时会退回「开头摘要 + 章节大纲」，此时改用 wiki_get_section 取具体小节。",
+          "正文超过约 24k 字符时会退回「开头摘要 + 章节大纲」，此时改用 wiki_get_section 取具体小节。" +
+          "如果页面是 source 类型、你需要未消化的原始资料，改用 wiki_read_raw 读 raw/ 原文。",
         inputSchema: z.object({
           path: z.string().describe("页面路径，如 wiki/shors-algorithm.md，也可直接给 slug。"),
           max_chars: z
@@ -186,6 +190,86 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
             detail as unknown as Record<string, unknown>,
             `# ${detail.page.title}（${detail.page.type}，${detail.page.wordCount} 词，出站 ${detail.outbound.length} / 入站 ${detail.inbound.length}）`,
           );
+        }),
+    );
+  }
+
+  if (enabled("wiki_list_raw")) {
+    server.registerTool(
+      "wiki_list_raw",
+      {
+        title: "列出原始文件",
+        description:
+          "列出 raw/ 层里的原始资料，而不是维基编译后的页面。" +
+          "每条包含源文件 id、文件名、格式、大小、入库时间，以及 PDF 等二进制文件是否有 .extracted.md 文本层。",
+        inputSchema: z.object({
+          limit: z.number().int().min(1).max(2000).optional().describe("返回条数上限，默认 200。"),
+          offset: z.number().int().min(0).optional().describe("分页偏移，默认 0。"),
+          wiki: WIKI_ARG,
+        }),
+      },
+      async (args) =>
+        withWiki(args.wiki, async (conn) => {
+          const all = await listRawSources(conn.ref.path, conn.db);
+          const offset = args.offset ?? 0;
+          const limit = args.limit ?? 200;
+          const page = all.slice(offset, offset + limit);
+          return jsonResult(
+            {
+              wiki: conn.ref.name,
+              total: all.length,
+              offset,
+              limit,
+              count: page.length,
+              sources: page,
+            },
+            `${conn.ref.name}：raw/ 共 ${all.length} 个原始文件，返回 ${page.length} 个。`,
+          );
+        }),
+    );
+  }
+
+  if (enabled("wiki_read_raw")) {
+    server.registerTool(
+      "wiki_read_raw",
+      {
+        title: "读取原始文件",
+        description:
+          "读取 raw/ 层的原始资料，而不是 source 类型的二手摘要页面。" +
+          "source 可传 wiki_list_raw 返回的 id、raw/ 文件名或上传时的原始文件名。" +
+          "mode=auto（默认）对 md/txt/html 等文本直接读原文，对 PDF/DOCX/图片等二进制优先读 .extracted.md 文本层；" +
+          "mode=original 强制原文，mode=extracted 强制文本层。",
+        inputSchema: z.object({
+          source: z.string().describe("源文件 id、raw/ 下的文件名，或上传时的原始文件名。"),
+          mode: z
+            .enum(["auto", "original", "extracted"])
+            .optional()
+            .describe("读取模式，默认 auto。"),
+          max_chars: z
+            .number()
+            .int()
+            .min(500)
+            .max(MAX_RAW_CHARS_CAP)
+            .optional()
+            .describe(`正文最大字符数，默认 ${DEFAULT_RAW_MAX_CHARS}，上限 ${MAX_RAW_CHARS_CAP}。`),
+          wiki: WIKI_ARG,
+        }),
+      },
+      async (args) =>
+        withWiki(args.wiki, async (conn) => {
+          try {
+            const result = await readRawSource(conn.ref.path, conn.db, args.source, {
+              mode: args.mode,
+              maxChars: args.max_chars,
+            });
+            const modeLabel = result.mode === "extracted" ? "提取文本层" : "原始文件";
+            return jsonResult(
+              { wiki: conn.ref.name, ...result },
+              `${result.source.title}（${modeLabel}，${result.totalChars} 字符${result.truncated ? "，已截断" : ""}）`,
+            );
+          } catch (err) {
+            return errorResult((err as Error).message);
+          }
         }),
     );
   }

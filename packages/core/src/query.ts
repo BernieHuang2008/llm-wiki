@@ -1,6 +1,7 @@
 import { callLLM, estimateCostCents, type LlmClient } from "@llm-wiki/llm";
 
 import type { Db } from "./db";
+import { searchRawSources } from "./raw-search";
 import { searchPagesUnified } from "./search-meili";
 import { recordRun } from "./db-runs";
 import { insertUsage } from "./db-usage";
@@ -10,6 +11,7 @@ import { QueryResponseSchema, type QueryResponse } from "./schema";
 import { readIndex, readPage, readSchema } from "./wiki";
 
 const TOP_K_RELEVANT_PAGES = 10;
+const TOP_K_RAW_SOURCES = 5;
 
 export type QueryProgressEvent =
   | { phase: "context"; message: string }
@@ -52,8 +54,11 @@ export async function queryWiki(opts: QueryWikiOptions): Promise<QueryWikiResult
     readIndexOrDefault(opts.wikiPath),
   ]);
 
-  opts.onProgress?.({ phase: "context", message: "Searching for relevant pages..." });
-  const relevantPages = await loadRelevantPages(opts.wikiPath, opts.db, opts.question);
+  opts.onProgress?.({ phase: "context", message: "Searching pages and raw sources..." });
+  const [relevantPages, rawSources] = await Promise.all([
+    loadRelevantPages(opts.wikiPath, opts.db, opts.question),
+    loadRawSources(opts.wikiPath, opts.db, opts.question),
+  ]);
 
   opts.onProgress?.({ phase: "llm", message: `Calling ${opts.model}...` });
 
@@ -61,6 +66,7 @@ export async function queryWiki(opts: QueryWikiOptions): Promise<QueryWikiResult
     schema,
     index,
     relevantPages,
+    rawSources,
     question: opts.question,
   });
 
@@ -77,7 +83,11 @@ export async function queryWiki(opts: QueryWikiOptions): Promise<QueryWikiResult
     model: result.model,
     input_tokens: result.usage.inputTokens,
     output_tokens: result.usage.outputTokens,
-    cost_cents: estimateCostCents(result.model, result.usage.inputTokens, result.usage.outputTokens),
+    cost_cents: estimateCostCents(
+      result.model,
+      result.usage.inputTokens,
+      result.usage.outputTokens,
+    ),
     created_at: new Date().toISOString(),
   });
 
@@ -110,6 +120,14 @@ async function readIndexOrDefault(wikiPath: string): Promise<string> {
     return await readIndex(wikiPath);
   } catch {
     return "(no index yet)";
+  }
+}
+
+async function loadRawSources(wikiPath: string, db: Db, question: string) {
+  try {
+    return await searchRawSources(wikiPath, db, question, { limit: TOP_K_RAW_SOURCES });
+  } catch {
+    return [];
   }
 }
 

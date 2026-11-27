@@ -46,7 +46,7 @@ export async function GET() {
     owned: status.owned,
     configPath: mcpConfigPath(),
     wikiPath: resolveWikiPath(),
-    /** The seven tools the shipped default enables; used by "restore defaults". */
+    /** The nine tools the shipped default enables; used by "restore defaults". */
     defaultTools: toolsForScopes([SCOPE_ALL]),
   });
 }

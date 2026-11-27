@@ -80,14 +80,16 @@ User clicks "New chat" or starts typing in the chat composer. We:
 
 1. Append `## user [HH:MM:SS]` block and message text to the file (so the thread shows it immediately, even if the model call later fails)
 2. Build context for the LLM:
-   - System prompt: "You are answering questions in a persistent chat thread against an LLM wiki. The user has access to the full wiki content. Cite pages with [[slug]]. Reference earlier messages when relevant."
-   - Wiki index
-   - Relevant pages (top K based on the latest user message)
+   - System prompt: "You are an agentic assistant answering in a persistent chat thread against an LLM wiki. Use the tools to search/read compiled pages and `raw/` sources. Cite pages with [[slug]] and raw sources with [raw:filename]."
+   - Wiki index + `CLAUDE.md`
    - Full chat history (truncate older messages if context limit approaches)
-3. Queue the assistant half of the turn as a background `chat` task and return `202`. The turn belongs to the task executor, not to the HTTP request, so closing the tab, reloading, or navigating away cannot cut the answer short.
-4. Stream the response, writing to a buffer. The executor appends each delta to an in-memory per-task buffer that is fanned out over SSE at `GET /api/tasks/[id]/stream`; the chat view renders it as it arrives. A viewer that attaches late (reload, second tab, a return to the chat) is sent the whole buffer as a snapshot first, so it renders the answer from the beginning instead of from wherever it happened to connect.
-5. Append `## assistant [HH:MM:SS]` block with the response to the file — only once the stream ends cleanly, so a half-received answer is never written
-6. Update `updated` timestamp and `message_count` in SQLite
+3. Run the agent loop (`packages/core/src/chat-agent.ts`): the model may call `wiki_search`, `wiki_read_page`, `wiki_backlinks`, `raw_search`, `raw_list`, `raw_read`; the server executes each tool, appends the result to the conversation, and calls the model again until it produces a final answer.
+4. Queue the assistant half of the turn as a background `chat` task and return `202`. The turn belongs to the task executor, not to the HTTP request, so closing the tab, reloading, or navigating away cannot cut the answer short.
+5. Stream reasoning tokens and tool call/result events to an in-memory per-task buffer that is fanned out over SSE at `GET /api/tasks/[id]/stream`. The final answer is emitted once the model stops calling tools (per-step content is narration, not the answer). A viewer that attaches late gets the whole buffer as a snapshot first.
+6. Append `## assistant [HH:MM:SS]` with the final answer plus an encoded trace comment (`<!--llm-wiki-trace:BASE64-->`) to the file. The trace comment is stripped when reading the chat back or building the next prompt, so the model never re-reads its own old tool logs.
+7. Update `updated` timestamp and `message_count` in SQLite.
+
+The user can press **停止** at any time. The API marks the task `canceled`, aborts the executor's `AbortController`, and the agent loop stops at the SDK boundary. Whatever reasoning/tool trace and partial answer had already been produced is persisted so it does not vanish from the thread.
 
 The stream is a *view*, never a participant: watching it, or not watching it, changes nothing about whether the turn finishes. The buffer is memory-only and disposable (it is pruned minutes after the turn ends); the chat file remains the single source of truth, and every viewer re-reads it once the turn settles.
 

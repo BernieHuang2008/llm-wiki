@@ -332,6 +332,203 @@ export type ChatCompleteResult = {
   model: string;
 };
 
+// ---- agent/tool-calling step ---------------------------------------------
+
+export type LlmToolCall = {
+  id: string;
+  type: "function";
+  function: {
+    name: string;
+    /** JSON string, exactly as the provider streams it. */
+    arguments: string;
+  };
+};
+
+export type LlmToolDefinition = {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+};
+
+/**
+ * A superset of ChatMessage that can also carry assistant tool calls and tool
+ * results back to the provider. Kept local so the llm package stays free of
+ * the OpenAI SDK's namespace types.
+ */
+export type AgentMessage = {
+  role: "system" | "user" | "assistant" | "tool";
+  content: string | null;
+  tool_calls?: LlmToolCall[];
+  tool_call_id?: string;
+  name?: string;
+};
+
+export type ChatAgentStepOptions = {
+  client: LlmClient;
+  model: string;
+  messages: AgentMessage[];
+  tools: LlmToolDefinition[];
+  /** Defaults to "auto". */
+  toolChoice?: "auto" | "none" | "required";
+  maxRetries?: number;
+  signal?: AbortSignal;
+  /** Reasoning tokens, when the provider exposes them. */
+  onReasoningDelta?: (delta: string) => void;
+  /** Content deltas, accumulated for callers that need partial text on abort. */
+  onContentDelta?: (delta: string) => void;
+};
+
+export type ChatAgentStepResult = {
+  text: string;
+  reasoning: string;
+  toolCalls: LlmToolCall[];
+  usage: LlmUsage;
+  model: string;
+};
+
+type RawToolCallDelta = {
+  index?: number;
+  id?: string;
+  type?: string;
+  function?: { name?: string; arguments?: string };
+};
+
+type RawAgentDelta = {
+  content?: unknown;
+  reasoning?: unknown;
+  reasoning_content?: unknown;
+  tool_calls?: unknown;
+};
+
+/**
+ * One model turn in an agent loop.
+ *
+ * Unlike `chatComplete`, this sends `tools` and returns any tool calls the
+ * model asked for. The caller executes the tools and calls this again with the
+ * tool results in `messages`. Content is accumulated rather than streamed:
+ * content before a tool call is usually narration and must not be mistaken for
+ * the final answer. Reasoning tokens *are* streamed so the UI can show the
+ * model thinking while it decides.
+ */
+export async function chatAgentStep(opts: ChatAgentStepOptions): Promise<ChatAgentStepResult> {
+  const maxRetries = opts.maxRetries ?? 3;
+  let lastError: unknown = null;
+  let emittedReasoning = false;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    opts.signal?.throwIfAborted();
+    try {
+      return await chatAgentStepOnce(opts, () => {
+        emittedReasoning = true;
+      });
+    } catch (err) {
+      // Preserve the SDK's abort identity: mapping it to a generic LlmError
+      // would make the agent loop mistake a stopped turn for a provider error.
+      if ((err as { name?: string } | null)?.name === "AbortError") throw err;
+      lastError = mapSdkError(err, opts.model, opts.client.baseURL);
+      // Once a reasoning token has reached the UI a retry would duplicate it.
+      if (emittedReasoning) throw lastError;
+      if (lastError instanceof ContextLengthError || lastError instanceof UnknownModelError) {
+        throw lastError;
+      }
+      if (attempt === maxRetries) break;
+      const delayMs =
+        lastError instanceof RateLimitError
+          ? (lastError.retryAfterMs ?? backoffMs(attempt))
+          : backoffMs(attempt);
+      await sleep(delayMs, opts.signal);
+    }
+  }
+
+  throw lastError ?? new LlmError("chatAgentStep exhausted retries with no error captured");
+}
+
+async function chatAgentStepOnce(
+  opts: ChatAgentStepOptions,
+  markReasoningEmitted: () => void,
+): Promise<ChatAgentStepResult> {
+  const stream = await opts.client.chat.completions.create(
+    {
+      model: opts.model,
+      messages: opts.messages as never,
+      tools: opts.tools as never,
+      ...(opts.toolChoice ? { tool_choice: opts.toolChoice as never } : {}),
+      stream: true,
+      ...(wantsStreamUsage(opts.client) ? { stream_options: { include_usage: true } } : {}),
+    },
+    opts.signal ? { signal: opts.signal } : undefined,
+  );
+
+  let text = "";
+  let reasoning = "";
+  let model = opts.model;
+  let usage: LlmUsage | null = null;
+  const calls = new Map<number, LlmToolCall>();
+
+  for await (const chunk of stream) {
+    if (typeof chunk.model === "string" && chunk.model.length > 0) model = chunk.model;
+    const delta = chunk.choices?.[0]?.delta as unknown as RawAgentDelta | undefined;
+
+    if (typeof delta?.content === "string" && delta.content.length > 0) {
+      text += delta.content;
+      opts.onContentDelta?.(delta.content);
+    }
+
+    const reasoningDelta =
+      typeof delta?.reasoning_content === "string"
+        ? delta.reasoning_content
+        : typeof delta?.reasoning === "string"
+          ? delta.reasoning
+          : "";
+    if (reasoningDelta.length > 0) {
+      reasoning += reasoningDelta;
+      opts.onReasoningDelta?.(reasoningDelta);
+      markReasoningEmitted();
+    }
+
+    if (Array.isArray(delta?.tool_calls)) {
+      for (const raw of delta.tool_calls as RawToolCallDelta[]) {
+        const index = typeof raw.index === "number" ? raw.index : 0;
+        const current = calls.get(index) ?? {
+          id: "",
+          type: "function" as const,
+          function: { name: "", arguments: "" },
+        };
+        if (typeof raw.id === "string" && raw.id.length > 0) current.id = raw.id;
+        if (typeof raw.function?.name === "string" && raw.function.name.length > 0) {
+          current.function.name += raw.function.name;
+        }
+        if (typeof raw.function?.arguments === "string" && raw.function.arguments.length > 0) {
+          current.function.arguments += raw.function.arguments;
+        }
+        calls.set(index, current);
+      }
+    }
+
+    if (chunk.usage) {
+      usage = {
+        inputTokens: chunk.usage.prompt_tokens ?? 0,
+        outputTokens: chunk.usage.completion_tokens ?? 0,
+      };
+    }
+  }
+
+  const toolCalls = [...calls.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([index, call]) => ({ ...call, id: call.id || `call_${index}` }));
+
+  return {
+    text,
+    reasoning,
+    toolCalls,
+    model,
+    usage: usage ?? { inputTokens: 0, outputTokens: estimateTokens(text) },
+  };
+}
+
 export async function chatComplete(opts: ChatCompleteOptions): Promise<ChatCompleteResult> {
   const maxRetries = opts.maxRetries ?? 3;
   let lastError: unknown = null;
@@ -485,7 +682,11 @@ function mapSdkError(err: unknown, model: string, baseURL?: string): LlmError {
     return new RateLimitError(retryAfter, err, provider);
   }
 
-  if (msg.includes("context length") || msg.includes("maximum context") || msg.includes("too long")) {
+  if (
+    msg.includes("context length") ||
+    msg.includes("maximum context") ||
+    msg.includes("too long")
+  ) {
     return new ContextLengthError(`source too large for model ${model}`, err);
   }
 

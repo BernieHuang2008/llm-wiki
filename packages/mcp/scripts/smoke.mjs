@@ -24,7 +24,14 @@ const configDir = join(tempRoot, "config");
 const wikiPath = join(tempRoot, "wiki-root");
 await mkdir(configDir, { recursive: true });
 await mkdir(join(wikiPath, "wiki"), { recursive: true });
+await mkdir(join(wikiPath, "raw"), { recursive: true });
 await mkdir(join(wikiPath, ".llm-wiki"), { recursive: true });
+
+await writeFile(
+  join(wikiPath, "raw", "2026-01-04-shor-notes.md"),
+  "# Shor notes\n\nRaw first-hand notes mention period finding.\n",
+  "utf8",
+);
 
 await writeFile(
   join(wikiPath, "wiki", "quantum-supremacy.md"),
@@ -124,6 +131,8 @@ await writeFile(
         wiki_get_section: true,
         wiki_backlinks: true,
         wiki_get_graph: true,
+        wiki_list_raw: true,
+        wiki_read_raw: true,
       },
     },
     null,
@@ -208,7 +217,7 @@ try {
   check("authorization-server metadata", asMeta.token_endpoint === `${base}/oauth/token`);
 
   const health = await (await fetch(`${base}/health`)).json();
-  check("health lists all seven tools", health.tools.length === 7, JSON.stringify(health.tools));
+  check("health lists all nine tools", health.tools.length === 9, JSON.stringify(health.tools));
   check("health lists the exposed wiki", health.wikis.length === 1);
 
   // ---- MCP handshake ----------------------------------------------------
@@ -232,7 +241,7 @@ try {
 
   const list = await mcp({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
   const toolNames = (list.json?.result?.tools ?? []).map((t) => t.name);
-  check("tools/list returns seven tools", toolNames.length === 7, JSON.stringify(toolNames));
+  check("tools/list returns nine tools", toolNames.length === 9, JSON.stringify(toolNames));
 
   const call = async (name, args) => {
     const res = await mcp({
@@ -276,6 +285,21 @@ try {
     "wiki_list_pages overview counts types",
     listPages.structured?.overview?.byType?.concept === 3,
   );
+
+  const rawList = await call("wiki_list_raw", {});
+  check(
+    "wiki_list_raw lists raw/ originals",
+    rawList.structured?.sources?.some((s) => s.filename === "2026-01-04-shor-notes.md"),
+    JSON.stringify(rawList.structured ?? rawList.raw).slice(0, 300),
+  );
+
+  const rawRead = await call("wiki_read_raw", { source: "raw/2026-01-04-shor-notes.md" });
+  check(
+    "wiki_read_raw returns the original text",
+    !rawRead.isError && rawRead.structured?.text?.includes("period finding"),
+    JSON.stringify(rawRead.structured ?? rawRead.raw).slice(0, 300),
+  );
+  check("wiki_read_raw reports the original mode", rawRead.structured?.mode === "original");
 
   const toc = await call("wiki_get_toc", { path: "quantum-supremacy" });
   const headingPaths = (toc.structured?.headings ?? []).map((h) => h.path);

@@ -46,7 +46,7 @@ half comes from `window.location`, the port from `packages/mcp/src/port.ts`.
 
 ## 2. Tools
 
-All seven are read-only. Every tool returns `structuredContent` (JSON, for the
+All nine are read-only. Every tool returns `structuredContent` (JSON, for the
 model) plus a one-line text summary (for a human reading a client's transcript).
 
 | Tool               | What it returns                          | Notable parameters                                                          |
@@ -58,11 +58,20 @@ model) plus a one-line text summary (for a human reading a client's transcript).
 | `wiki_get_section` | one section's body + child headings      | `path`, `heading`, `include_subsections`                                    |
 | `wiki_backlinks`   | inbound links + excerpts, plus outbound  | `path`                                                                      |
 | `wiki_get_graph`   | nodes and edges, or a subgraph           | `roots`, `depth` (≤4), `types`, `tags`, `max_nodes`, `include_broken_links` |
+| `wiki_list_raw`    | files in `raw/`, not compiled pages      | `limit`, `offset`                                                           |
+| `wiki_read_raw`    | original raw text, or its extracted text | `source` (id / filename / original name), `mode`, `max_chars`               |
 
 `wiki_get_toc` → `wiki_get_section` is the pair that matters for cost: a model
 reads a page's structure for a few hundred tokens, then pulls only the section it
 needs. `wiki_read_page` also falls back to "opening excerpt + outline" when a
 body exceeds ~24k characters, so a huge page cannot blow up a context window.
+
+`wiki_list_raw` / `wiki_read_raw` expose the original `raw/` layer directly, so a
+model is not limited to the compiled `source` pages. For text formats
+(`md`/`txt`/`html`) `mode: "auto"` reads the original file; for binary formats
+(`pdf`/`docx`/images) it reads the cached `<filename>.extracted.md` text layer
+instead of pretending the bytes are UTF-8. `mode: "original"` forces the raw
+file, and a binary file with no extracted sibling is an explicit error.
 
 Every tool takes an optional `wiki` argument, which is only consulted when more
 than one wiki is exposed _and_ the request URL does not already name one.

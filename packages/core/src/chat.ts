@@ -2,13 +2,7 @@ import { mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promi
 import { join, basename } from "node:path";
 import { randomUUID } from "node:crypto";
 
-import {
-  chatComplete,
-  DEFAULT_MODELS,
-  estimateCostCents,
-  type ChatMessage as LlmChatMessage,
-  type LlmClient,
-} from "@llm-wiki/llm";
+import { DEFAULT_MODELS, estimateCostCents, type LlmClient } from "@llm-wiki/llm";
 import matter from "gray-matter";
 
 import { loadWikiSettings } from "./config";
@@ -20,16 +14,19 @@ import {
   listChatRows,
   updateChat,
 } from "./db-chats";
-import { searchPagesUnified } from "./search-meili";
+import {
+  ChatAgentAbortedError,
+  runChatAgent,
+  type ChatAgentEvent,
+  type ChatAgentTrace,
+} from "./chat-agent";
 import { insertUsage } from "./db-usage";
-import { buildChatSystemPrompt } from "./prompts/chat";
-import type { ExistingPageSnippet } from "./prompts/ingest";
+import { buildChatAgentSystemPrompt } from "./prompts/chat";
 import type { ChatRow } from "./types";
-import { readIndex, readPage, readSchema, WIKI_PATHS } from "./wiki";
+import { readIndex, readSchema, WIKI_PATHS } from "./wiki";
 
 export const DEFAULT_CHAT_FOLDERS = ["inbox", "pinned", "archive"] as const;
 const TRASH_DIR = "trash/chats";
-const TOP_K_RELEVANT_PAGES = 8;
 
 // ---- file <-> structure --------------------------------------------------
 
@@ -38,6 +35,8 @@ export type ChatMessage = {
   /** HH:MM:SS local time as written by the app. */
   time: string;
   content: string;
+  /** Agent reasoning and tool calls, encoded into the chat file as a comment. */
+  trace?: ChatAgentTrace;
 };
 
 export type ChatFile = {
@@ -139,6 +138,33 @@ export async function readChat(wikiPath: string, chatId: string, db: Db): Promis
 }
 
 const MESSAGE_HEADER_RE = /^##\s+(user|assistant)\s+\[(\d{2}:\d{2}:\d{2})\]\s*$/i;
+const TRACE_RE = /^<!--llm-wiki-trace:([A-Za-z0-9+/=]+)-->\r?\n?/;
+const MAX_PERSISTED_THINKING = 32_000;
+
+function encodeTrace(trace: ChatAgentTrace): string {
+  const trimmed: ChatAgentTrace = {
+    ...trace,
+    thinking:
+      trace.thinking.length > MAX_PERSISTED_THINKING
+        ? `${trace.thinking.slice(0, MAX_PERSISTED_THINKING)}\n\n[trace truncated]`
+        : trace.thinking,
+  };
+  return `<!--llm-wiki-trace:${Buffer.from(JSON.stringify(trimmed), "utf8").toString("base64")}-->\n`;
+}
+
+function decodeTrace(content: string): { content: string; trace?: ChatAgentTrace } {
+  const match = content.match(TRACE_RE);
+  if (!match?.[1]) return { content };
+  try {
+    const parsed = JSON.parse(Buffer.from(match[1], "base64").toString("utf8")) as ChatAgentTrace;
+    if (typeof parsed.thinking !== "string" || !Array.isArray(parsed.tools)) {
+      return { content: content.slice(match[0].length) };
+    }
+    return { content: content.slice(match[0].length), trace: parsed };
+  } catch {
+    return { content: content.slice(match[0].length) };
+  }
+}
 
 function parseMessages(body: string): ChatMessage[] {
   const lines = body.split(/\r?\n/);
@@ -148,7 +174,9 @@ function parseMessages(body: string): ChatMessage[] {
 
   function flush() {
     if (current) {
-      current.content = buf.join("\n").trim();
+      const decoded = decodeTrace(buf.join("\n").trim());
+      current.content = decoded.content.trim();
+      if (decoded.trace) current.trace = decoded.trace;
       messages.push(current);
     }
     buf = [];
@@ -180,6 +208,7 @@ export async function appendMessage(
   chatId: string,
   role: ChatMessage["role"],
   content: string,
+  trace?: ChatAgentTrace,
 ): Promise<{ row: ChatRow; message: ChatMessage }> {
   const row = getChat(db, chatId);
   if (!row) throw chatNotFound(chatId);
@@ -187,12 +216,18 @@ export async function appendMessage(
   const raw = await readFile(filePath, "utf8");
   const parsed = matter(raw);
 
-  const message: ChatMessage = { role, time: nowHms(), content: content.trim() };
+  const message: ChatMessage = {
+    role,
+    time: nowHms(),
+    content: content.trim(),
+    ...(trace ? { trace } : {}),
+  };
 
   // Rebuild body: keep prior content, append a separator + new message block.
   const trimmedPrior = parsed.content.replace(/\s+$/u, "");
   const sep = trimmedPrior.length > 0 ? "\n\n" : "";
-  const block = `## ${message.role} [${message.time}]\n${message.content}\n`;
+  const traceBlock = trace ? encodeTrace(trace) : "";
+  const block = `## ${message.role} [${message.time}]\n${traceBlock}${message.content}\n`;
   const newBody = `${trimmedPrior}${sep}${block}`;
 
   const updatedIso = new Date().toISOString();
@@ -341,6 +376,10 @@ export type SendChatMessageOptions = {
    * viewers get the text, the file gets the finished answer.
    */
   onDelta?: (delta: string) => void;
+  /** Reasoning, tool-call and content events from the agent loop. */
+  onEvent?: (event: ChatAgentEvent) => void;
+  /** Aborts the turn; the user's Stop button is wired to this. */
+  signal?: AbortSignal;
 };
 
 export type SendChatMessageResult = {
@@ -369,29 +408,56 @@ export async function sendChatMessage(
     readSchemaOrDefault(opts.wikiPath),
     readIndexOrDefault(opts.wikiPath),
   ]);
-  const relevantPages = await loadRelevantPages(opts.wikiPath, opts.db, opts.userMessage);
-  const system = buildChatSystemPrompt({ schema, index, relevantPages });
+  const system = buildChatAgentSystemPrompt({ schema, index });
 
-  const messages: LlmChatMessage[] = [
-    { role: "system", content: system },
-    ...chat.messages.map((m) => ({ role: m.role, content: m.content })),
-  ];
-
-  // 3. LLM call. `onDelta` (when the caller wants live output) turns this into
-  // a streamed request; without it the call is exactly as before.
-  const result = await chatComplete({
-    client: opts.client,
-    model,
-    messages,
-    ...(opts.onDelta ? { onDelta: opts.onDelta } : {}),
-  });
+  // 3. Agent loop. The model decides which wiki/raw tools to call; the loop
+  // executes them and sends results back until it produces a final answer.
+  let result: Awaited<ReturnType<typeof runChatAgent>> | undefined;
+  try {
+    result = await runChatAgent({
+      wikiPath: opts.wikiPath,
+      db: opts.db,
+      client: opts.client,
+      model,
+      system,
+      messages: chat.messages.map((m) => ({ role: m.role, content: m.content })),
+      ...(opts.signal ? { signal: opts.signal } : {}),
+      onEvent: (event) => {
+        if (event.type === "content" && opts.onDelta) opts.onDelta(event.text);
+        opts.onEvent?.(event);
+      },
+    });
+  } catch (err) {
+    // A stopped turn keeps whatever the model already produced, so the trace
+    // and partial answer do not vanish from the thread when the user hits Stop.
+    if (err instanceof ChatAgentAbortedError) {
+      const partial = err.partialText.trim();
+      const hasTrace = err.trace.thinking.trim().length > 0 || err.trace.tools.length > 0;
+      if (partial.length > 0 || hasTrace) {
+        await appendMessage(
+          opts.wikiPath,
+          opts.db,
+          opts.chatId,
+          "assistant",
+          partial.length > 0 ? partial : "（已停止生成）",
+          err.trace,
+        );
+      }
+    }
+    throw err;
+  }
+  if (!result) throw new Error("chat agent returned no result");
 
   insertUsage(opts.db, {
     operation: "chat",
     model: result.model,
     input_tokens: result.usage.inputTokens,
     output_tokens: result.usage.outputTokens,
-    cost_cents: estimateCostCents(result.model, result.usage.inputTokens, result.usage.outputTokens),
+    cost_cents: estimateCostCents(
+      result.model,
+      result.usage.inputTokens,
+      result.usage.outputTokens,
+    ),
     created_at: new Date().toISOString(),
   });
 
@@ -402,6 +468,7 @@ export async function sendChatMessage(
     opts.chatId,
     "assistant",
     result.text,
+    result.trace,
   );
 
   const userMessage = userAppend
@@ -485,34 +552,6 @@ async function readIndexOrDefault(wikiPath: string): Promise<string> {
   } catch {
     return "(no index yet)";
   }
-}
-
-async function loadRelevantPages(
-  wikiPath: string,
-  db: Db,
-  question: string,
-): Promise<ExistingPageSnippet[]> {
-  let hits: Array<{ slug: string; title: string }> = [];
-  try {
-    hits = await searchPagesUnified(wikiPath, db, question, TOP_K_RELEVANT_PAGES);
-  } catch {
-    hits = [];
-  }
-  const out: ExistingPageSnippet[] = [];
-  for (const hit of hits) {
-    try {
-      const page = await readPage(wikiPath, hit.slug);
-      out.push({
-        slug: page.slug,
-        title: page.frontmatter.title,
-        type: page.frontmatter.type,
-        excerpt: page.content,
-      });
-    } catch {
-      // skip
-    }
-  }
-  return out;
 }
 
 // ---- listing -------------------------------------------------------------

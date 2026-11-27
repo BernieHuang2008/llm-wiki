@@ -22,6 +22,9 @@ export const runtime = "nodejs";
  *                                                     authoritative replay
  *   reset     {}                                    — a retry restarted the answer
  *   delta     { text }                              — newly generated chunk
+ *   thinking  { text }                              — reasoning-token delta
+ *   tool_call { tool }                              — a tool started
+ *   tool_result { tool }                            — a tool finished/failed
  *   progress  { progress }                          — phase label changed
  *   retrying  { error }                             — attempt failed, task requeued
  *   done      { task }                              — terminal; stream closes
@@ -128,6 +131,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
             progress: task.progress,
             status: isActiveTaskStatus(task.status) ? "running" : "failed",
             error: task.error,
+            trace: { thinking: "", tools: [] },
             finished: !isActiveTaskStatus(task.status),
           },
         );
@@ -150,6 +154,14 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
         }
         if (event.type === "progress") {
           send("progress", { progress: event.progress });
+          return;
+        }
+        if (event.type === "thinking") {
+          send("thinking", { text: event.text });
+          return;
+        }
+        if (event.type === "tool_call" || event.type === "tool_result") {
+          send(event.type, { tool: event.tool });
           return;
         }
         if (event.type === "reset") {

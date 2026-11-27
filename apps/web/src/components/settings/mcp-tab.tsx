@@ -20,7 +20,9 @@ type McpToolId =
   | "wiki_get_toc"
   | "wiki_get_section"
   | "wiki_backlinks"
-  | "wiki_get_graph";
+  | "wiki_get_graph"
+  | "wiki_list_raw"
+  | "wiki_read_raw";
 
 type McpAuthMode = "none" | "bearer" | "oauth";
 
@@ -83,6 +85,8 @@ const TOOL_LABELS: Record<McpToolId, string> = {
   wiki_get_section: "读取章节",
   wiki_backlinks: "反向链接",
   wiki_get_graph: "知识图谱",
+  wiki_list_raw: "列出原始文件",
+  wiki_read_raw: "读取原始文件",
 };
 
 const TOOL_SUMMARIES: Record<McpToolId, string> = {
@@ -93,6 +97,8 @@ const TOOL_SUMMARIES: Record<McpToolId, string> = {
   wiki_get_section: "按标题路径读取单个章节，降低 token 消耗。",
   wiki_backlinks: "查找所有指向指定页面的入站链接。",
   wiki_get_graph: "返回知识图谱的节点与边，或按条件返回子图。",
+  wiki_list_raw: "浏览 raw/ 层的原始资料、格式、大小与文本层状态。",
+  wiki_read_raw: "读取 raw/ 原始文本；PDF 等二进制优先返回 .extracted.md 文本层。",
 };
 
 const AUTH_MODES: Array<{ id: McpAuthMode; label: string; hint: string }> = [

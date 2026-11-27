@@ -2,15 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-export type TaskStatus = "pending" | "running" | "succeeded" | "failed" | "canceled" | "interrupted";
+export type TaskStatus =
+  | "pending"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "canceled"
+  | "interrupted";
 
-export type TaskKind =
-  | "ingest_file"
-  | "ingest_url"
-  | "ingest_text"
-  | "query"
-  | "chat"
-  | "link_fix";
+export type TaskKind = "ingest_file" | "ingest_url" | "ingest_text" | "query" | "chat" | "link_fix";
 
 export type PublicTask = {
   id: string;
@@ -75,10 +75,7 @@ export function taskStatusTone(status: TaskStatus): string {
   }
 }
 
-export async function fetchTasks(
-  params = "",
-  init?: RequestInit,
-): Promise<PublicTask[]> {
+export async function fetchTasks(params = "", init?: RequestInit): Promise<PublicTask[]> {
   const res = await fetch(`/api/tasks${params}`, { cache: "no-store", ...init });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = (await res.json()) as { tasks?: PublicTask[] };
@@ -138,9 +135,24 @@ export async function waitForTask(
 
 // ---- live output ----------------------------------------------------------
 
+export type AgentToolTrace = {
+  id: string;
+  name: string;
+  arguments: string;
+  status: "running" | "ok" | "error";
+  summary: string;
+  durationMs: number | null;
+};
+
+export type AgentTrace = {
+  thinking: string;
+  tools: AgentToolTrace[];
+};
+
 export type LiveTaskSnapshot = {
   text: string;
   progress: string | null;
+  trace?: AgentTrace;
 };
 
 export type LiveTaskHandlers = {
@@ -150,6 +162,10 @@ export type LiveTaskHandlers = {
   onReset?: () => void;
   /** A newly generated chunk of the answer. */
   onDelta?: (text: string) => void;
+  /** A reasoning-token delta. */
+  onThinking?: (text: string) => void;
+  /** A tool call started or changed status. */
+  onTool?: (tool: AgentToolTrace) => void;
   /** Phase label ("正在生成回复…") for the stretches with no text yet. */
   onProgress?: (progress: string | null) => void;
   /** The last attempt failed but the task is queued again. */
@@ -206,13 +222,20 @@ export function watchTaskLive(id: string, handlers: LiveTaskHandlers = {}): Live
       });
     };
 
-    on<{ text: string; progress: string | null }>("snapshot", (data) => {
+    on<{ text: string; progress: string | null; trace?: AgentTrace }>("snapshot", (data) => {
       connected = true;
       errorsAfterConnect = 0;
-      handlers.onSnapshot?.({ text: data.text, progress: data.progress });
+      handlers.onSnapshot?.({
+        text: data.text,
+        progress: data.progress,
+        ...(data.trace ? { trace: data.trace } : {}),
+      });
     });
     on<Record<string, never>>("reset", () => handlers.onReset?.());
     on<{ text: string }>("delta", (data) => handlers.onDelta?.(data.text));
+    on<{ text: string }>("thinking", (data) => handlers.onThinking?.(data.text));
+    on<{ tool: AgentToolTrace }>("tool_call", (data) => handlers.onTool?.(data.tool));
+    on<{ tool: AgentToolTrace }>("tool_result", (data) => handlers.onTool?.(data.tool));
     on<{ progress: string | null }>("progress", (data) => handlers.onProgress?.(data.progress));
     on<{ error: string | null }>("retrying", (data) => handlers.onRetrying?.(data.error));
     on<{ task: PublicTask | null }>("done", (data) => finish(data.task));
@@ -283,7 +306,7 @@ type PollOptions = {
   params: string;
   intervalMs?: number;
   enabled?: boolean;
-};/**
+}; /**
  * Shared polling loop. Pauses while the tab is hidden so a backgrounded
  * window is not hammering the API, and resumes (with an immediate refresh)
  * when the user comes back.

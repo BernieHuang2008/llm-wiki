@@ -1,3 +1,4 @@
+import type { RawSourceSnippet } from "../raw-search";
 import type { Page } from "../types";
 
 // Per docs/05. Kept as a function rather than a static string so per-wiki
@@ -11,6 +12,7 @@ Behavior rules:
 - One entity or concept per page. Keep pages focused.
 - Update existing pages rather than duplicating info.
 - If new info contradicts an existing page, flag it in the contradictions array.
+- Related raw-source excerpts (when present) are first-hand originals from raw/. Use them to fill in detail or to catch contradictions with the new source.
 - Be concise. This is a personal wiki, not Wikipedia.
 - Page type guidance:
   - entity: a person, organization, product, place
@@ -77,6 +79,8 @@ export type BuildIngestPromptOpts = {
   schema: string;
   index: string;
   relevantPages: ExistingPageSnippet[];
+  /** First-hand excerpts from raw/ that relate to the incoming source. */
+  rawSources?: RawSourceSnippet[];
   source: {
     title: string;
     format: string;
@@ -98,6 +102,8 @@ export function buildIngestPrompt(opts: BuildIngestPromptOpts): {
           .join("\n\n---\n\n")
       : "(no existing pages yet — this wiki is empty)";
 
+  const rawBlock = renderRawSources(opts.rawSources ?? []);
+
   const system = [
     SYSTEM_RULES,
     "",
@@ -109,6 +115,7 @@ export function buildIngestPrompt(opts: BuildIngestPromptOpts): {
     "",
     `Existing pages (top ${opts.relevantPages.length} most relevant):`,
     fenceMarkdown(pagesBlock),
+    ...(rawBlock ? ["", "Related raw-source excerpts:", fenceMarkdown(rawBlock)] : []),
     "",
     JSON_SHAPE,
   ].join("\n");
@@ -122,6 +129,13 @@ export function buildIngestPrompt(opts: BuildIngestPromptOpts): {
   ].join("\n");
 
   return { system, user };
+}
+
+function renderRawSources(sources: RawSourceSnippet[]): string {
+  if (sources.length === 0) return "";
+  return sources
+    .map((s) => `### ${s.title} (raw: ${s.path}, mode: ${s.mode})\n${s.excerpt}`)
+    .join("\n\n---\n\n");
 }
 
 function truncateToWords(text: string, maxWords: number): string {

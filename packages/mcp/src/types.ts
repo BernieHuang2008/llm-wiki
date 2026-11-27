@@ -65,6 +65,8 @@ export const DEFAULT_MCP_CONFIG: McpConfig = {
     wiki_get_section: true,
     wiki_backlinks: true,
     wiki_get_graph: true,
+    wiki_list_raw: true,
+    wiki_read_raw: true,
   },
 };
 

@@ -34,7 +34,8 @@ async function main(): Promise<void> {
     {
       instructions:
         "这是 LLM Wiki 的只读知识库接口。先用 wiki_search 定位页面，再用 wiki_read_page 读全文；" +
-        "长页面先看 wiki_get_toc，再用 wiki_get_section 只取需要的小节。",
+        "长页面先看 wiki_get_toc，再用 wiki_get_section 只取需要的小节。" +
+        "需要原始资料时用 wiki_list_raw 浏览 raw/，再用 wiki_read_raw 读原文（PDF 等二进制会读 .extracted.md 文本层）。",
     },
   );
   registerTools(server, { registry, allowedTools, principalLabel: "stdio" });
